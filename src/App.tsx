@@ -118,7 +118,7 @@ export default function App() {
     birthday: '',
     address: '',
     familyStatus: '',
-    faithStatus: '불교',
+    faithStatus: '기독교',
     visitationChecked: false,
     regularChecked: false
   })
@@ -231,7 +231,7 @@ export default function App() {
       birthday: '',
       address: '',
       familyStatus: '',
-      faithStatus: '불교',
+      faithStatus: '기독교',
       visitationChecked: false,
       regularChecked: false
     })
@@ -602,7 +602,7 @@ export default function App() {
                   />
                   <input
                     type="text"
-                    placeholder="신앙 현황 (예: 불교, 힌두교 등)"
+                    placeholder="신앙 현황 (예: 기독교, 힌두교 등)"
                     value={newMember.faithStatus}
                     onChange={e => setNewMember({ ...newMember, faithStatus: e.target.value })}
                   />
