@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@firebase/app": "^0.16.2",
+    "@firebase/firestore": "^4.17.2",
+    "firebase": "^12.19.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
