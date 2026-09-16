@@ -59,7 +59,7 @@ export interface RegularWorshipRecord {
 
 export interface Sermon {
   id: string
-  authorId: string // won 또는 wha
+  authorId: string // his 또는 wha
   title: string
   scripture: string // 성경 구절
   content: string // 말씀 본문
@@ -88,9 +88,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'intro' | 'members' | 'visitation' | 'regular' | 'sermons'>('intro')
 
   // 파이어베이스 데이터 상태
-  const [adminUser, setAdminUser] = useState<'won' | 'wha' | null>(() => {
+  const [adminUser, setAdminUser] = useState<'his' | 'wha' | null>(() => {
     const saved = sessionStorage.getItem('church_admin_user')
-    return (saved === 'won' || saved === 'wha') ? saved : null
+    return (saved === 'his' || saved === 'wha') ? saved : null
   })
 
   const [introData, setIntroData] = useState<IntroData>({
@@ -192,10 +192,10 @@ export default function App() {
   // 로그인 핸들러
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (loginId === 'won' && loginPw === '12345') {
-      setAdminUser('won')
+    if (loginId === 'his' && loginPw === '12345') {
+      setAdminUser('his')
       setShowLoginModal(false)
-      alert('won 관리자님 환영합니다.')
+      alert('his 관리자님 환영합니다.')
     } else if (loginId === 'wha' && loginPw === '67890') {
       setAdminUser('wha')
       setShowLoginModal(false)
@@ -470,7 +470,7 @@ export default function App() {
           <div className="modal-content">
             <h3>🔒 관리자 로그인</h3>
             <form onSubmit={handleLogin}>
-              <input type="text" placeholder="관리자 ID (won 또는 wha)" value={loginId} onChange={e => setLoginId(e.target.value)} required />
+              <input type="text" placeholder="관리자 ID (his 또는 wha)" value={loginId} onChange={e => setLoginId(e.target.value)} required />
               <input type="password" placeholder="비밀번호" value={loginPw} onChange={e => setLoginPw(e.target.value)} required />
               <div className="modal-buttons">
                 <button type="submit" className="btn-confirm">로그인</button>
