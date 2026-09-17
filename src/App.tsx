@@ -589,7 +589,7 @@ export default function App() {
             <div className="link-section">
               <h3>관련 링크</h3>
               <a 
-                href="https://my-church-web.vercel.app/" 
+                href="https://my-church-web-chi.vercel.app/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="link-btn"
