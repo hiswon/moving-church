@@ -316,11 +316,7 @@ body {
   margin-bottom: 16px;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-}
+
 
 .mb-8 { margin-bottom: 8px; }
 .mb-12 { margin-bottom: 12px; }
@@ -831,4 +827,22 @@ input:focus, select:focus, textarea:focus {
   border-radius: 300x;
   text-align: center;
   margin-bottom: 10px; /* 버튼 아래쪽에 12px 간격 추가 */;
+}
+
+/* 수정 후 코드 */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); /* 최소 폭을 140px로 낮춤 */
+  gap: 8px;
+}
+
+/* 화면 폭이 작은 모바일 기기(480px 이하) 안전 처리 */
+@media (max-width: 480px) {
+  .form-grid {
+    grid-template-columns: 1fr; /* 모바일에서는 1열로 세로 정렬 */
+  }
+  
+  .app-container {
+    padding: 0 8px 40px; /* 좌우 여백 줄임 */
+  }
 }
