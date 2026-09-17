@@ -168,7 +168,7 @@ export default function App() {
     email: '',
     address: '',
     familyStatus: '',
-    faithStatus: '무교',
+    faithStatus: '',
     isVisitationTarget: true,
     isRegularTarget: true
   })
@@ -277,10 +277,19 @@ export default function App() {
   // --- 1. 교인 등록 ---
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMember.name.trim()) return
+    if (!newMember.name.trim()) {
+      alert('이름을 입력해 주세요.')
+      return
+    }
+
+    // 기타 선택 시 국가명 입력 확인
+    if (newMember.country === '기타' && !newMember.customCountry.trim()) {
+      alert('국가명을 직접 입력해 주세요.')
+      return
+    }
 
     const finalCountry = newMember.country === '기타' 
-      ? (newMember.customCountry.trim() || '기타')
+      ? newMember.customCountry.trim()
       : newMember.country
 
     const member: Member = {
@@ -315,11 +324,13 @@ export default function App() {
       email: '',
       address: '',
       familyStatus: '',
-      faithStatus: '무교',
+      faithStatus: '',
       isVisitationTarget: true,
       isRegularTarget: true
     })
     setShowAddForm(false)
+    
+    // Firebase 데이터 저장 실행
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
@@ -671,7 +682,7 @@ export default function App() {
                         placeholder="국가명 직접 입력 *" 
                         value={newMember.customCountry} 
                         onChange={e => setNewMember({ ...newMember, customCountry: e.target.value })}
-                        required 
+                         
                       />
                     )}
 
