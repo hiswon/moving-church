@@ -315,7 +315,7 @@ export default function App() {
       email: '',
       address: '',
       familyStatus: '',
-      faithStatus: '불교',
+      faithStatus: '무교',
       isVisitationTarget: true,
       isRegularTarget: true
     })
