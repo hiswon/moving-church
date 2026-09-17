@@ -23,7 +23,7 @@ export interface MemberNote {
   id: string
   author: string
   content: string
-  createdAt: string // YYYY-MM-DD HH:mm
+  createdAt: string
 }
 
 export interface Member {
@@ -38,9 +38,9 @@ export interface Member {
   address?: string
   familyStatus?: string
   faithStatus?: string
-  isVisitationTarget: boolean // 심방예배 대상자 여부
-  isRegularTarget: boolean    // 정시예배 대상자 여부
-  notes?: MemberNote[]        // 성도기록 (채팅/누적 타임라인)
+  isVisitationTarget: boolean
+  isRegularTarget: boolean
+  notes?: MemberNote[]
   createdAt: string
 }
 
@@ -48,9 +48,9 @@ export interface VisitationRecord {
   id: string
   memberId: string
   memberName: string
-  weekKey: string        // YYYY-MM-W (예: 2026-08-W1)
-  weekLabel: string      // 화면 표시용 (예: 8월 1주째)
-  visitedAt: string      // 시간 포함 (예: 8/2[일] 14:30)
+  weekKey: string
+  weekLabel: string
+  visitedAt: string
   timestamp: number
 }
 
@@ -78,9 +78,8 @@ export interface IntroData {
   worshipSchedule: string
 }
 
-// const HEADER_BG = 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?q=80&w=1200&auto=format&fit=crop'
 const HEADER_BG = frontPic
-// --- 날짜 & 주차 계산 유틸리티 ---
+
 function getCustomWeekInfo(dateInput: Date = new Date(), offsetWeeks: number = 0) {
   const d = new Date(dateInput)
   d.setDate(d.getDate() + offsetWeeks * 7)
@@ -110,7 +109,6 @@ function getCustomWeekInfo(dateInput: Date = new Date(), offsetWeeks: number = 0
 }
 
 function getRecent5WeeksInfo(baseDate: Date = new Date()) {
-  // 5주전(-5), 4주전(-4), 3주전(-3), 2주전(-2), 지난주(-1)
   const weeks = []
   const labels = ['5주 전', '4주 전', '3주 전', '2주 전', '지난주']
   
@@ -151,15 +149,18 @@ export default function App() {
   const [loginId, setLoginId] = useState('')
   const [loginPw, setLoginPw] = useState('')
 
+  // 조회 탭용 국가선택
   const [selectedCountryTab, setSelectedCountryTab] = useState<string>('태국')
   const [showAddForm, setShowAddForm] = useState<boolean>(false)
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null)
   const [newNoteInput, setNewNoteInput] = useState<Record<string, string>>({})
 
+  // 폼 내부 독자적 나라 선택용 상태 (기본값 태국)
+  const [formCountry, setFormCountry] = useState<string>('태국')
+
   // 교인등록 폼 입력값
   const [newMember, setNewMember] = useState({
     name: '',
-    country: '태국',
     customCountry: '',
     hopeLevel: 5,
     age: 0,
@@ -205,6 +206,7 @@ export default function App() {
     fetchData()
   }, [])
 
+  // Firebase 저장 함수 (JSON 객체 직렬화로 undefined 값 자동 제거 보장)
   const saveDataToFirebase = async (
     iData = introData,
     mList = members,
@@ -213,15 +215,17 @@ export default function App() {
     sList = sermons
   ) => {
     try {
-      await setDoc(doc(db, 'church', 'app_data'), {
+      const payload = JSON.parse(JSON.stringify({
         introData: iData,
         members: mList,
         visitations: vList,
         regularRecords: rList,
         sermons: sList
-      })
+      }))
+      await setDoc(doc(db, 'church', 'app_data'), payload)
     } catch (e) {
-      console.error('Firebase 저장 실패:', e)
+      console.error('Firebase 저장 상세 오류:', e)
+      alert('데이터 저장 중 오류가 발생했습니다. 콘솔 창을 확인해주세요.')
     }
   }
 
@@ -239,9 +243,7 @@ export default function App() {
     setLoginId(''); setLoginPw('')
   }
 
-  // 변경 후 (최근 3주 기준 1/0/1 예시):
   const getMember3WeekStats = (memberId: string, records: { memberId: string; weekKey: string }[]) => {
-    // 3주 전(-3), 2주 전(-2), 지난주(-1) 순서로 생성
     const recent3 = [
       getCustomWeekInfo(new Date(), -3),
       getCustomWeekInfo(new Date(), -2),
@@ -253,20 +255,11 @@ export default function App() {
       return isAttended ? '1' : '0'
     }).join('/')
 
-    return statusPattern // 예: "1/0/1"
+    return statusPattern
   }
 
-  // const getMember5WeekPattern = (memberId: string, records: { memberId: string; weekKey: string }[]) => {
-  //   const recent5 = getRecent5WeeksInfo(new Date()) // [5주전, 4주전, 3주전, 2주전, 지난주]
-    
-  //   return recent5.map(w => {
-  //     return records.some(r => r.memberId === memberId && r.weekKey === w.weekKey) ? '1' : '0'
-  //   }).join('/') // 예: "1/1/0/1/0"
-  // }
-  // 전체 최근 5주 주별 참석자 현황 데이터 계산
   const recent5WeeksData = useMemo(() => {
-    const recent5 = getRecent5WeeksInfo(new Date())
-    return recent5
+    return getRecent5WeeksInfo(new Date())
   }, [])
 
   const availableCountries = useMemo(() => {
@@ -274,48 +267,53 @@ export default function App() {
     return Array.from(new Set([...ALL_COUNTRIES, ...customCountries]))
   }, [members])
 
-  // --- 1. 교인 등록 ---
+  // --- 교인 등록 (undefined 제거로 Firebase 오류 방지) ---
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
+    
     if (!newMember.name.trim()) {
       alert('이름을 입력해 주세요.')
       return
     }
 
-    // 기타 선택 시 국가명 입력 확인
-    if (newMember.country === '기타' && !newMember.customCountry.trim()) {
-      alert('국가명을 직접 입력해 주세요.')
-      return
+    let finalCountry = formCountry
+    if (formCountry === '기타') {
+      if (newMember.customCountry.trim()) {
+        finalCountry = newMember.customCountry.trim()
+      } else {
+        alert('국가명을 입력해 주세요.')
+        return
+      }
     }
 
-    const finalCountry = newMember.country === '기타' 
-      ? newMember.customCountry.trim()
-      : newMember.country
-
+    // undefined 대신 빈 문자열("") 지정하여 Firebase 오류 방지
     const member: Member = {
       id: Date.now().toString(),
       name: newMember.name.trim(),
       country: finalCountry,
       hopeLevel: newMember.hopeLevel,
       age: Number(newMember.age) || 0,
-      birthday: newMember.birthday.trim() || undefined,
-      phone: newMember.phone.trim() || undefined,
-      email: newMember.email.trim() || undefined,
-      address: newMember.address.trim() || undefined,
-      familyStatus: newMember.familyStatus.trim() || undefined,
-      faithStatus: newMember.faithStatus.trim() || undefined,
+      birthday: newMember.birthday.trim() || "",
+      phone: newMember.phone.trim() || "",
+      email: newMember.email.trim() || "",
+      address: newMember.address.trim() || "",
+      familyStatus: newMember.familyStatus.trim() || "",
+      faithStatus: newMember.faithStatus.trim() || "",
       isVisitationTarget: newMember.isVisitationTarget,
       isRegularTarget: newMember.isRegularTarget,
       notes: [],
       createdAt: new Date().toISOString().split('T')[0]
     }
 
-    const updated = [member, ...members]
-    setMembers(updated)
+    const updatedMembers = [member, ...members]
+    setMembers(updatedMembers)
+    
+    // 등록 완료 후 해당 국가 탭으로 자동 이동
     setSelectedCountryTab(finalCountry)
+    
+    // 폼 초기화
     setNewMember({
       name: '',
-      country: finalCountry,
       customCountry: '',
       hopeLevel: 5,
       age: 0,
@@ -328,10 +326,11 @@ export default function App() {
       isVisitationTarget: true,
       isRegularTarget: true
     })
+    setFormCountry('태국')
     setShowAddForm(false)
     
-    // Firebase 데이터 저장 실행
-    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
+    // Firebase에 최신 객체 저장
+    await saveDataToFirebase(introData, updatedMembers, visitations, regularRecords, sermons)
   }
 
   const handleUpdateMember = async () => {
@@ -364,7 +363,7 @@ export default function App() {
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
-  // --- 성도기록 (채팅식) ---
+  // --- 성도기록 ---
   const handleAddMemberNote = async (memberId: string) => {
     const text = newNoteInput[memberId]?.trim()
     if (!text || !adminUser) return
@@ -408,7 +407,7 @@ export default function App() {
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
-  // --- 2. 심방예배 참석 토글 ---
+  // --- 심방예배 참석 토글 ---
   const handleToggleVisitationCheck = async (member: Member) => {
     const now = new Date()
     const { weekKey, weekLabel } = getCustomWeekInfo(now)
@@ -445,7 +444,7 @@ export default function App() {
     await saveDataToFirebase(introData, members, updatedVisitations, regularRecords, sermons)
   }
 
-  // --- 3. 정시예배 참석 토글 ---
+  // --- 정시예배 참석 토글 ---
   const handleToggleRegularCheck = async (member: Member) => {
     const now = new Date()
     const { weekKey, weekLabel } = getCustomWeekInfo(now)
@@ -474,7 +473,7 @@ export default function App() {
     await saveDataToFirebase(introData, members, visitations, updatedRecords, sermons)
   }
 
-  // --- 4. 말씀 저장 ---
+  // --- 말씀 저장 ---
   const handleSaveSermon = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!adminUser || !sermonTitle.trim()) return
@@ -549,7 +548,7 @@ export default function App() {
           <div className="modal-content">
             <h3>🔒 관리자 로그인</h3>
             <form onSubmit={handleLogin}>
-              <input type="text" placeholder="관리자 ID (w 또는 w)" value={loginId} onChange={e => setLoginId(e.target.value)} required />
+              <input type="text" placeholder="관리자 ID" value={loginId} onChange={e => setLoginId(e.target.value)} required />
               <input type="password" placeholder="비밀번호" value={loginPw} onChange={e => setLoginPw(e.target.value)} required />
               <div className="modal-buttons">
                 <button type="submit" className="btn-confirm">로그인</button>
@@ -599,32 +598,16 @@ export default function App() {
             
             <div className="link-section">
               <h3>관련 링크</h3>
-              <a 
-                href="https://my-church-web-chi.vercel.app/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="link-btn"
-              >
+              <a href="https://my-church-web-chi.vercel.app/" target="_blank" rel="noopener noreferrer" className="link-btn">
                 🌿 무빙처치
               </a>
-              <a 
-                href="https://moving-thai.vercel.app/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="link-btn"
-              >
+              <a href="https://moving-thai.vercel.app/" target="_blank" rel="noopener noreferrer" className="link-btn">
                 🌿 무빙타이
               </a>
-              <a 
-                href="https://movingcambodia.vercel.app/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="link-btn"
-              >
+              <a href="https://movingcambodia.vercel.app/" target="_blank" rel="noopener noreferrer" className="link-btn">
                 🌿 무빙캄보디아
               </a>
             </div>
-
           </section>
         )}
 
@@ -633,7 +616,7 @@ export default function App() {
           <section className="tab-content text-left">
             <h2>📖 교인명부</h2>
             
-            {/* 국가 선택 탭 */}
+            {/* 상단 나라 조회 탭 */}
             <div className="filter-tags">
               {availableCountries.map(c => (
                 <button
@@ -646,43 +629,43 @@ export default function App() {
               ))}
             </div>
 
-            {/* 교인등록 아코디언 버튼 */}
+            {/* 교인등록 토글 버튼 */}
             <div className="add-member-accordion-bar">
               <button 
                 type="button"
                 className={`btn-toggle-add ${showAddForm ? 'open' : ''}`}
                 onClick={() => setShowAddForm(!showAddForm)}
               >
-                {showAddForm ? '➖ 교인등록 폼 닫기' : '➕ 교인등록'}
+                {showAddForm ? '➖ 교인등록 폼 닫기' : '➕ 신규 교인 등록'}
               </button>
             </div>
 
-            {/* 교인등록 아코디언 내용 */}
+            {/* 완전 분리된 독립 교인등록 폼 */}
             {showAddForm && (
               <div className="form-box accordion-content">
-                <h3>➕ [{selectedCountryTab}] 교인 신규 기입</h3>
+                <h3>➕ 신규 교인 등록 (독립 국가 지정)</h3>
                 <form onSubmit={handleAddMember}>
                   <div className="form-grid mb-8">
                     <input type="text" placeholder="이름 *" value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} required />
                     
-                    {/* 국가 선택 드롭다운 */}
+                    {/* 폼 전용 독립 국가 선택 드롭다운 */}
                     <select 
-                      value={newMember.country} 
-                      onChange={e => setNewMember({ ...newMember, country: e.target.value })}
+                      value={formCountry} 
+                      onChange={e => setFormCountry(e.target.value)}
                     >
-                      {availableCountries.map(c => (
+                      {ALL_COUNTRIES.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                       <option value="기타">기타 (직접입력)</option>
                     </select>
 
-                    {newMember.country === '기타' && (
+                    {formCountry === '기타' && (
                       <input 
                         type="text" 
                         placeholder="국가명 직접 입력 *" 
                         value={newMember.customCountry} 
                         onChange={e => setNewMember({ ...newMember, customCountry: e.target.value })}
-                         
+                        required
                       />
                     )}
 
@@ -694,7 +677,6 @@ export default function App() {
                     <input type="number" placeholder="나이" value={newMember.age || ''} onChange={e => setNewMember({ ...newMember, age: Number(e.target.value) })} />
                     <input type="text" placeholder="생일" value={newMember.birthday} onChange={e => setNewMember({ ...newMember, birthday: e.target.value })} />
                     
-                    {/* 전화번호 & 이메일 추가 */}
                     <input type="text" placeholder="전화번호" value={newMember.phone} onChange={e => setNewMember({ ...newMember, phone: e.target.value })} />
                     <input type="email" placeholder="이메일" value={newMember.email} onChange={e => setNewMember({ ...newMember, email: e.target.value })} />
 
@@ -707,7 +689,7 @@ export default function App() {
               </div>
             )}
 
-            {/* 교인 리스트 */}
+            {/* 선택된 상단 나라 탭에 따른 교인 리스트 */}
             <div className="member-list">
               {members.filter(m => m.country === selectedCountryTab).map(m => {
                 const isExpanded = expandedMemberId === m.id
@@ -716,7 +698,6 @@ export default function App() {
 
                 return (
                   <div key={m.id} className="member-card">
-                    {/* 메인 요약 바 (요구사항 1: 나라, Hope, 나이, 심방/정시통계 기본 노출) */}
                     <div className="member-header">
                       <div className="member-basic-info" onClick={() => setExpandedMemberId(isExpanded ? null : m.id)}>
                         <strong className="member-name">{m.name}</strong>
@@ -724,12 +705,9 @@ export default function App() {
                         <span className={`hope-badge hope-${m.hopeLevel}`}>{HOPE_LEVELS[m.hopeLevel].title}</span>
                         {m.age > 0 && <span className="info-chip">{m.age}세</span>}
                         
-                        {/* 심방예배 대상자일 경우 통계 노출 */}
-                        {/* 변경 후 */}
                         {m.isVisitationTarget && (
-                          <span className="stat-tag visitation">심방: {getMember3WeekStats(m.id, visitations)}</span>
+                          <span className="stat-tag visitation">심방: {visitationStats}</span>
                         )}
-                        {/* 정시예배 대상자일 경우 통계 노출 */}
                         {m.isRegularTarget && (
                           <span className="stat-tag regular">정시: {regularStats}</span>
                         )}
@@ -745,17 +723,13 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* 신상보기 눌렀을 때 늘어지는 영역 (요구사항 2) */}
                     {isExpanded && (
                       <div className="member-expanded-details">
                         <div className="detail-rows mb-12">
                           <p><strong>Hope:</strong> {HOPE_LEVELS[m.hopeLevel].desc}</p>
                           {m.birthday && <p><strong>생일:</strong> {m.birthday}</p>}
-                          
-                          {/* 미기입 시 항목 자체가 안 보임 */}
                           {m.phone && <p><strong>전화번호:</strong> <a href={`tel:${m.phone}`} className="phone-link">{m.phone}</a></p>}
                           {m.email && <p><strong>이메일:</strong> <a href={`mailto:${m.email}`} className="email-link">{m.email}</a></p>}
-                          
                           {m.familyStatus && <p><strong>가족현황:</strong> {m.familyStatus}</p>}
                           {m.faithStatus && <p><strong>기존신앙:</strong> {m.faithStatus}</p>}
                           {m.address && (
@@ -771,11 +745,10 @@ export default function App() {
                               </a>
                             </p>
                           )}
-                          <p><strong>최근5주 심방:</strong> {visitationStats}</p>
-                          <p><strong>최근5주 예배:</strong> {regularStats}</p>
+                          <p><strong>최근3주 심방:</strong> {visitationStats}</p>
+                          <p><strong>최근3주 예배:</strong> {regularStats}</p>
                         </div>
 
-                        {/* 대상자 등록 체크박스 (안으로 이동) */}
                         <div className="checkbox-group mb-12">
                           <label className="checkbox-label">
                             <input 
@@ -795,10 +768,8 @@ export default function App() {
                           </label>
                         </div>
 
-                        {/* 성도기록 (채팅 형태 누적 관리) */}
                         <div className="member-notes-container">
                           <h4>💬 성도기록 (누적 관리)</h4>
-                          
                           <div className="notes-chat-list">
                             {(!m.notes || m.notes.length === 0) ? (
                               <p className="no-notes">기록된 성도 정보가 없습니다.</p>
@@ -822,7 +793,6 @@ export default function App() {
                             )}
                           </div>
 
-                          {/* 채팅식 입력 영역 */}
                           <div className="note-input-row">
                             <input
                               type="text"
@@ -843,18 +813,11 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* 정보 수정 & 삭제 */}
                         <div className="expanded-actions">
-                          <button 
-                            className="btn-secondary-sm" 
-                            onClick={() => setEditingMember(m)}
-                          >
+                          <button className="btn-secondary-sm" onClick={() => setEditingMember(m)}>
                             ✏️ 정보 수정
                           </button>
-                          <button 
-                            className="btn-danger-sm" 
-                            onClick={() => handleDeleteMember(m.id)}
-                          >
+                          <button className="btn-danger-sm" onClick={() => handleDeleteMember(m.id)}>
                             🗑️ 교인 삭제
                           </button>
                         </div>
@@ -872,7 +835,6 @@ export default function App() {
           <section className="tab-content text-left">
             <h2>🏃‍♂️ 심방예배 (주 1회 체크)</h2>
 
-            {/* 요구사항 3: 5주/4주/3주/2주/지난주 출석 현황 노출 */}
             <div className="info-card">
               <h3>📊 최근 5주 심방 출석 현황</h3>
               <div className="recent-5weeks-grid">
@@ -951,7 +913,6 @@ export default function App() {
           <section className="tab-content text-left">
             <h2>⛪ 주일 정시예배 (주일 11시)</h2>
 
-            {/* 요구사항 3: 5주/4주/3주/2주/지난주 출석 현황 노출 */}
             <div className="info-card">
               <h3>📊 최근 5주 정시예배 출석 현황</h3>
               <div className="recent-5weeks-grid">
@@ -969,7 +930,7 @@ export default function App() {
 
             <div className="form-box">
               <h3>📅 오늘 기준: {currentWeekInfo.weekLabel} 정시예배 참석 체크</h3>
-              <p className="subtitle mb-12">버튼을 눌러 참석자를 추가/취소하세요 (시간 표기 없이 이름만 기록).</p>
+              <p className="subtitle mb-12">버튼을 눌러 참석자를 추가/취소하세요.</p>
               
               <div className="filter-tags">
                 {members.filter(m => m.isRegularTarget).map(m => {
