@@ -538,7 +538,7 @@ export default function App() {
           <div className="modal-content">
             <h3>🔒 관리자 로그인</h3>
             <form onSubmit={handleLogin}>
-              <input type="text" placeholder="관리자 ID (won 또는 wha)" value={loginId} onChange={e => setLoginId(e.target.value)} required />
+              <input type="text" placeholder="관리자 ID (w 또는 w)" value={loginId} onChange={e => setLoginId(e.target.value)} required />
               <input type="password" placeholder="비밀번호" value={loginPw} onChange={e => setLoginPw(e.target.value)} required />
               <div className="modal-buttons">
                 <button type="submit" className="btn-confirm">로그인</button>
