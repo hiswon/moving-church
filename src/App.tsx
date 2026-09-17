@@ -3,6 +3,8 @@ import './App.css'
 import { db } from './firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
+import frontPic from './assets/1.jpg';
+
 export const ACTIVE_COUNTRIES = ['태국', '캄보디아', '미얀마', '방글라데시'] as const
 export const PLANNED_COUNTRIES = ['인도네시아', '베트남'] as const
 export const ALL_COUNTRIES = [...ACTIVE_COUNTRIES, ...PLANNED_COUNTRIES, '한국']
@@ -76,8 +78,8 @@ export interface IntroData {
   worshipSchedule: string
 }
 
-const HEADER_BG = 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?q=80&w=1200&auto=format&fit=crop'
-
+// const HEADER_BG = 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?q=80&w=1200&auto=format&fit=crop'
+const HEADER_BG = frontPic
 // --- 날짜 & 주차 계산 유틸리티 ---
 function getCustomWeekInfo(dateInput: Date = new Date(), offsetWeeks: number = 0) {
   const d = new Date(dateInput)
@@ -166,7 +168,7 @@ export default function App() {
     email: '',
     address: '',
     familyStatus: '',
-    faithStatus: '불교',
+    faithStatus: '무교',
     isVisitationTarget: true,
     isRegularTarget: true
   })
@@ -237,14 +239,30 @@ export default function App() {
     setLoginId(''); setLoginPw('')
   }
 
-  // 개인별 최근 5주 출석 횟수 계산 (예: "3/5회")
-  const getMember5WeekStats = (memberId: string, records: { memberId: string; weekKey: string }[]) => {
-    const recent5 = getRecent5WeeksInfo(new Date())
-    const keys = recent5.map(w => w.weekKey)
-    const attendedCount = records.filter(r => r.memberId === memberId && keys.includes(r.weekKey)).length
-    return `${attendedCount}/5회`
+  // 변경 후 (최근 3주 기준 1/0/1 예시):
+  const getMember3WeekStats = (memberId: string, records: { memberId: string; weekKey: string }[]) => {
+    // 3주 전(-3), 2주 전(-2), 지난주(-1) 순서로 생성
+    const recent3 = [
+      getCustomWeekInfo(new Date(), -3),
+      getCustomWeekInfo(new Date(), -2),
+      getCustomWeekInfo(new Date(), -1)
+    ]
+    
+    const statusPattern = recent3.map(w => {
+      const isAttended = records.some(r => r.memberId === memberId && r.weekKey === w.weekKey)
+      return isAttended ? '1' : '0'
+    }).join('/')
+
+    return statusPattern // 예: "1/0/1"
   }
 
+  // const getMember5WeekPattern = (memberId: string, records: { memberId: string; weekKey: string }[]) => {
+  //   const recent5 = getRecent5WeeksInfo(new Date()) // [5주전, 4주전, 3주전, 2주전, 지난주]
+    
+  //   return recent5.map(w => {
+  //     return records.some(r => r.memberId === memberId && r.weekKey === w.weekKey) ? '1' : '0'
+  //   }).join('/') // 예: "1/1/0/1/0"
+  // }
   // 전체 최근 5주 주별 참석자 현황 데이터 계산
   const recent5WeeksData = useMemo(() => {
     const recent5 = getRecent5WeeksInfo(new Date())
@@ -498,7 +516,7 @@ export default function App() {
           <div className="banner-overlay">
             <span className="badge-neon">GLOBAL WORSHIP COMMUNITY</span>
             <h1>Moving His Children</h1>
-            <p className="subtitle">태국 · 캄보디아 · 미얀마 · 방글라데시 · 인도네시아 · 베트남</p>
+            <p className="subtitle">이들은 하나님의 자녀입니다.</p>
           </div>
         </div>
 
@@ -653,8 +671,8 @@ export default function App() {
             <div className="member-list">
               {members.filter(m => m.country === selectedCountryTab).map(m => {
                 const isExpanded = expandedMemberId === m.id
-                const visitationStats = getMember5WeekStats(m.id, visitations)
-                const regularStats = getMember5WeekStats(m.id, regularRecords)
+                const visitationStats = getMember3WeekStats(m.id, visitations)
+                const regularStats = getMember3WeekStats(m.id, regularRecords)
 
                 return (
                   <div key={m.id} className="member-card">
@@ -667,8 +685,9 @@ export default function App() {
                         {m.age > 0 && <span className="info-chip">{m.age}세</span>}
                         
                         {/* 심방예배 대상자일 경우 통계 노출 */}
+                        {/* 변경 후 */}
                         {m.isVisitationTarget && (
-                          <span className="stat-tag visitation">심방: {visitationStats}</span>
+                          <span className="stat-tag visitation">심방: {getMember3WeekStats(m.id, visitations)}</span>
                         )}
                         {/* 정시예배 대상자일 경우 통계 노출 */}
                         {m.isRegularTarget && (
@@ -838,7 +857,7 @@ export default function App() {
                   const isCheckedThisWeek = visitations.some(
                     v => v.memberId === m.id && v.weekKey === currentWeekInfo.weekKey
                   )
-                  const stats = getMember5WeekStats(m.id, visitations)
+                  const stats = getMember3WeekStats(m.id, visitations)
 
                   return (
                     <button
@@ -917,7 +936,7 @@ export default function App() {
                   const isCheckedThisWeek = regularRecords.some(
                     r => r.memberId === m.id && r.weekKey === currentWeekInfo.weekKey
                   )
-                  const stats = getMember5WeekStats(m.id, regularRecords)
+                  const stats = getMember3WeekStats(m.id, regularRecords)
 
                   return (
                     <button
