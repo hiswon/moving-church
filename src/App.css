@@ -846,3 +846,16 @@ input:focus, select:focus, textarea:focus {
     padding: 0 8px 40px; /* 좌우 여백 줄임 */
   }
 }
+
+body, html {
+  overflow-x: hidden; /* 가로 스크롤 및 화면 넘침 방지 */
+  width: 100%;
+}
+
+.app-container {
+  max-width: 960px;
+  width: 100%; /* 너비 100% 명시 */
+  margin: 0 auto;
+  padding: 0 16px 40px;
+  box-sizing: border-box; /* 패딩 포함 크기 계산 */
+}
