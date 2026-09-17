@@ -585,6 +585,35 @@ export default function App() {
               <h3>⏰ 예배 일정</h3>
               <p>{introData.worshipSchedule}</p>
             </div>
+            
+            <div className="link-section">
+              <h3>관련 링크</h3>
+              <a 
+                href="https://my-church-web.vercel.app/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="link-btn"
+              >
+                🌿 무빙처치
+              </a>
+              <a 
+                href="https://moving-thai.vercel.app/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="link-btn"
+              >
+                🌿 무빙타이
+              </a>
+              <a 
+                href="https://movingcambodia.vercel.app/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="link-btn"
+              >
+                🌿 무빙캄보디아
+              </a>
+            </div>
+
           </section>
         )}
 
