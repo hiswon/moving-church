@@ -7,7 +7,7 @@ export const ACTIVE_COUNTRIES = ['태국', '캄보디아', '미얀마', '방글�
 export const PLANNED_COUNTRIES = ['인도네시아', '베트남'] as const
 export const ALL_COUNTRIES = [...ACTIVE_COUNTRIES, ...PLANNED_COUNTRIES, '한국']
 
-export type CountryType = typeof ALL_COUNTRIES[number]
+export type CountryType = string
 
 export const HOPE_LEVELS: Record<number, { title: string; desc: string }> = {
   5: { title: 'Hope 5', desc: '예배를 잘 드림' },
@@ -17,18 +17,28 @@ export const HOPE_LEVELS: Record<number, { title: string; desc: string }> = {
   1: { title: 'Hope 1', desc: '만났지만 다음에 만날 가망성 별로 없음' }
 }
 
+export interface MemberNote {
+  id: string
+  author: string
+  content: string
+  createdAt: string // YYYY-MM-DD HH:mm
+}
+
 export interface Member {
   id: string
   name: string
   country: CountryType
   hopeLevel: number
   age: number
-  birthday: string
-  address: string
-  familyStatus: string
-  faithStatus: string
+  birthday?: string
+  phone?: string
+  email?: string
+  address?: string
+  familyStatus?: string
+  faithStatus?: string
   isVisitationTarget: boolean // 심방예배 대상자 여부
   isRegularTarget: boolean    // 정시예배 대상자 여부
+  notes?: MemberNote[]        // 성도기록 (채팅/누적 타임라인)
   createdAt: string
 }
 
@@ -39,8 +49,6 @@ export interface VisitationRecord {
   weekKey: string        // YYYY-MM-W (예: 2026-08-W1)
   weekLabel: string      // 화면 표시용 (예: 8월 1주째)
   visitedAt: string      // 시간 포함 (예: 8/2[일] 14:30)
-  title?: string
-  notes?: string
   timestamp: number
 }
 
@@ -71,26 +79,23 @@ export interface IntroData {
 const HEADER_BG = 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?q=80&w=1200&auto=format&fit=crop'
 
 // --- 날짜 & 주차 계산 유틸리티 ---
-// 8월 첫째주 일요일 기준, 그 전 6일(월~토)을 같은 1주차로 계산
-function getCustomWeekInfo(dateInput: Date = new Date()) {
+function getCustomWeekInfo(dateInput: Date = new Date(), offsetWeeks: number = 0) {
   const d = new Date(dateInput)
-  const day = d.getDay() // 0: 일, 1: 월 ... 6: 토
-  
-  // 주일(일요일)을 주 기준일로 설정 (월~토는 이번 주 일요일로 날짜를 맞춤)
+  d.setDate(d.getDate() + offsetWeeks * 7)
+
+  const day = d.getDay()
   const sunday = new Date(d)
   const diffToSunday = day === 0 ? 0 : (7 - day)
   sunday.setDate(d.getDate() + diffToSunday)
 
   const year = sunday.getFullYear()
-  const month = sunday.getMonth() + 1 // 1 ~ 12월
+  const month = sunday.getMonth() + 1
   const sundayDate = sunday.getDate()
 
-  // 해당 월의 첫 번째 일요일 찾기
   const firstDayOfMonth = new Date(year, month - 1, 1)
   const firstDayOfWeek = firstDayOfMonth.getDay()
   const firstSundayDate = firstDayOfWeek === 0 ? 1 : (7 - firstDayOfWeek + 1)
 
-  // 몇 주차인지 산정 (첫 일요일 전 6일도 1주차에 포함)
   let weekNum = 1
   if (sundayDate > firstSundayDate) {
     weekNum = Math.floor((sundayDate - firstSundayDate) / 7) + 1
@@ -102,7 +107,21 @@ function getCustomWeekInfo(dateInput: Date = new Date()) {
   return { year, month, weekNum, weekKey, weekLabel, sunday }
 }
 
-// 요일 한글 표기
+function getRecent5WeeksInfo(baseDate: Date = new Date()) {
+  // 5주전(-5), 4주전(-4), 3주전(-3), 2주전(-2), 지난주(-1)
+  const weeks = []
+  const labels = ['5주 전', '4주 전', '3주 전', '2주 전', '지난주']
+  
+  for (let i = 5; i >= 1; i--) {
+    const info = getCustomWeekInfo(baseDate, -i)
+    weeks.push({
+      labelName: labels[5 - i],
+      ...info
+    })
+  }
+  return weeks
+}
+
 function getDayKorean(d: Date) {
   const days = ['일', '월', '화', '수', '목', '금', '토']
   return days[d.getDay()]
@@ -130,13 +149,21 @@ export default function App() {
   const [loginId, setLoginId] = useState('')
   const [loginPw, setLoginPw] = useState('')
 
-  const [selectedCountryTab, setSelectedCountryTab] = useState<CountryType>('태국')
-  const [newMember, setNewMember] = useState<Omit<Member, 'id' | 'createdAt'>>({
+  const [selectedCountryTab, setSelectedCountryTab] = useState<string>('태국')
+  const [showAddForm, setShowAddForm] = useState<boolean>(false)
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null)
+  const [newNoteInput, setNewNoteInput] = useState<Record<string, string>>({})
+
+  // 교인등록 폼 입력값
+  const [newMember, setNewMember] = useState({
     name: '',
     country: '태국',
+    customCountry: '',
     hopeLevel: 5,
     age: 0,
     birthday: '',
+    phone: '',
+    email: '',
     address: '',
     familyStatus: '',
     faithStatus: '불교',
@@ -144,21 +171,18 @@ export default function App() {
     isRegularTarget: true
   })
 
-  const [viewingMember, setViewingMember] = useState<Member | null>(null)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
 
   // 말씀 폼
   const [sermonTitle, setSermonTitle] = useState('')
   const [sermonScripture, setSermonScripture] = useState('')
   const [sermonContent, setSermonContent] = useState('')
-  // const [editingSermon, setEditingSermon] = useState<Sermon | null>(null)
 
   useEffect(() => {
     if (adminUser) sessionStorage.setItem('church_admin_user', adminUser)
     else sessionStorage.removeItem('church_admin_user')
   }, [adminUser])
 
-  // 파이어베이스 로드
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -213,56 +237,71 @@ export default function App() {
     setLoginId(''); setLoginPw('')
   }
 
-  // --- 개인별/전체 참석 통계 (최근10주 / 최근4주 / 지난주) ---
-  const getMemberStats = (memberId: string, records: { memberId: string; timestamp: number }[]) => {
-    const now = Date.now()
-    const oneWeek = 7 * 24 * 60 * 60 * 1000
-    const myRecs = records.filter(r => r.memberId === memberId)
-
-    const w10 = myRecs.filter(r => now - r.timestamp <= 10 * oneWeek).length
-    const w4 = myRecs.filter(r => now - r.timestamp <= 4 * oneWeek).length
-    const w1 = myRecs.filter(r => now - r.timestamp <= 1 * oneWeek).length
-
-    return `${w10}/${w4}/${w1}`
+  // 개인별 최근 5주 출석 횟수 계산 (예: "3/5회")
+  const getMember5WeekStats = (memberId: string, records: { memberId: string; weekKey: string }[]) => {
+    const recent5 = getRecent5WeeksInfo(new Date())
+    const keys = recent5.map(w => w.weekKey)
+    const attendedCount = records.filter(r => r.memberId === memberId && keys.includes(r.weekKey)).length
+    return `${attendedCount}/5회`
   }
 
-  const getTotalStats = (records: { timestamp: number }[]) => {
-    const now = Date.now()
-    const oneWeek = 7 * 24 * 60 * 60 * 1000
+  // 전체 최근 5주 주별 참석자 현황 데이터 계산
+  const recent5WeeksData = useMemo(() => {
+    const recent5 = getRecent5WeeksInfo(new Date())
+    return recent5
+  }, [])
 
-    const w10 = records.filter(r => now - r.timestamp <= 10 * oneWeek).length
-    const w4 = records.filter(r => now - r.timestamp <= 4 * oneWeek).length
-    const w1 = records.filter(r => now - r.timestamp <= 1 * oneWeek).length
+  const availableCountries = useMemo(() => {
+    const customCountries = members.map(m => m.country).filter(c => !ALL_COUNTRIES.includes(c))
+    return Array.from(new Set([...ALL_COUNTRIES, ...customCountries]))
+  }, [members])
 
-    return `${w10}/${w4}/${w1}`
-  }
-
-  // --- 1. 교인 관리 ---
+  // --- 1. 교인 등록 ---
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMember.name.trim()) return
 
+    const finalCountry = newMember.country === '기타' 
+      ? (newMember.customCountry.trim() || '기타')
+      : newMember.country
+
     const member: Member = {
-      ...newMember,
       id: Date.now().toString(),
-      country: selectedCountryTab,
+      name: newMember.name.trim(),
+      country: finalCountry,
+      hopeLevel: newMember.hopeLevel,
+      age: Number(newMember.age) || 0,
+      birthday: newMember.birthday.trim() || undefined,
+      phone: newMember.phone.trim() || undefined,
+      email: newMember.email.trim() || undefined,
+      address: newMember.address.trim() || undefined,
+      familyStatus: newMember.familyStatus.trim() || undefined,
+      faithStatus: newMember.faithStatus.trim() || undefined,
+      isVisitationTarget: newMember.isVisitationTarget,
+      isRegularTarget: newMember.isRegularTarget,
+      notes: [],
       createdAt: new Date().toISOString().split('T')[0]
     }
 
     const updated = [member, ...members]
     setMembers(updated)
+    setSelectedCountryTab(finalCountry)
     setNewMember({
       name: '',
-      country: selectedCountryTab,
+      country: finalCountry,
+      customCountry: '',
       hopeLevel: 5,
       age: 0,
       birthday: '',
+      phone: '',
+      email: '',
       address: '',
       familyStatus: '',
       faithStatus: '불교',
       isVisitationTarget: true,
       isRegularTarget: true
     })
+    setShowAddForm(false)
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
@@ -270,7 +309,6 @@ export default function App() {
     if (!editingMember) return
     const updated = members.map(m => m.id === editingMember.id ? editingMember : m)
     setMembers(updated)
-    setViewingMember(editingMember)
     setEditingMember(null)
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
@@ -279,7 +317,7 @@ export default function App() {
     if (window.confirm('정말 이 교인을 삭제하시겠습니까?')) {
       const updated = members.filter(m => m.id !== id)
       setMembers(updated)
-      setViewingMember(null)
+      if (expandedMemberId === id) setExpandedMemberId(null)
       await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
     }
   }
@@ -297,12 +335,55 @@ export default function App() {
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
-  // --- 2. 심방예배 참석 토글 (버튼 클릭 시 이번 주 체크/취소) ---
+  // --- 성도기록 (채팅식) ---
+  const handleAddMemberNote = async (memberId: string) => {
+    const text = newNoteInput[memberId]?.trim()
+    if (!text || !adminUser) return
+
+    const now = new Date()
+    const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+    const note: MemberNote = {
+      id: Date.now().toString(),
+      author: adminUser,
+      content: text,
+      createdAt: timeStr
+    }
+
+    const updated = members.map(m => {
+      if (m.id === memberId) {
+        return {
+          ...m,
+          notes: [...(m.notes || []), note]
+        }
+      }
+      return m
+    })
+
+    setMembers(updated)
+    setNewNoteInput({ ...newNoteInput, [memberId]: '' })
+    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
+  }
+
+  const handleDeleteMemberNote = async (memberId: string, noteId: string) => {
+    const updated = members.map(m => {
+      if (m.id === memberId) {
+        return {
+          ...m,
+          notes: (m.notes || []).filter(n => n.id !== noteId)
+        }
+      }
+      return m
+    })
+    setMembers(updated)
+    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
+  }
+
+  // --- 2. 심방예배 참석 토글 ---
   const handleToggleVisitationCheck = async (member: Member) => {
     const now = new Date()
     const { weekKey, weekLabel } = getCustomWeekInfo(now)
 
-    // 이번 주에 이미 체크되었는지 확인
     const existingIndex = visitations.findIndex(
       v => v.memberId === member.id && v.weekKey === weekKey
     )
@@ -310,10 +391,8 @@ export default function App() {
     let updatedVisitations = [...visitations]
 
     if (existingIndex !== -1) {
-      // 이미 있으면 취소 (삭제)
       updatedVisitations.splice(existingIndex, 1)
     } else {
-      // 없으면 추가 (날짜 및 시간 기록)
       const month = now.getMonth() + 1
       const date = now.getDate()
       const dayKorean = getDayKorean(now)
@@ -337,7 +416,7 @@ export default function App() {
     await saveDataToFirebase(introData, members, updatedVisitations, regularRecords, sermons)
   }
 
-  // --- 3. 정시예배 참석 토글 (시간 기록 없이 이름만 포함) ---
+  // --- 3. 정시예배 참석 토글 ---
   const handleToggleRegularCheck = async (member: Member) => {
     const now = new Date()
     const { weekKey, weekLabel } = getCustomWeekInfo(now)
@@ -387,10 +466,8 @@ export default function App() {
     await saveDataToFirebase(introData, members, visitations, regularRecords, updated)
   }
 
-  // 오늘 기준 현재 주차 정보
   const currentWeekInfo = useMemo(() => getCustomWeekInfo(new Date()), [])
 
-  // 주별 그룹핑 데이터 (심방예배)
   const groupedVisitations = useMemo(() => {
     const map: Record<string, { weekLabel: string; records: VisitationRecord[] }> = {}
     visitations.forEach(v => {
@@ -402,7 +479,6 @@ export default function App() {
     return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
   }, [visitations])
 
-  // 주별 그룹핑 데이터 (정시예배)
   const groupedRegulars = useMemo(() => {
     const map: Record<string, { weekLabel: string; records: RegularWorshipRecord[] }> = {}
     regularRecords.forEach(r => {
@@ -421,7 +497,7 @@ export default function App() {
         <div className="header-banner" style={{ backgroundImage: `url(${HEADER_BG})` }}>
           <div className="banner-overlay">
             <span className="badge-neon">GLOBAL WORSHIP COMMUNITY</span>
-            <h1>외국인 교인 관리 앱</h1>
+            <h1>Moving His Children</h1>
             <p className="subtitle">태국 · 캄보디아 · 미얀마 · 방글라데시 · 인도네시아 · 베트남</p>
           </div>
         </div>
@@ -497,9 +573,11 @@ export default function App() {
         {/* 2. 교인명부 */}
         {activeTab === 'members' && adminUser && (
           <section className="tab-content text-left">
-            <h2>📖 교인명부 (대상자 등록)</h2>
+            <h2>📖 교인명부</h2>
+            
+            {/* 국가 선택 탭 */}
             <div className="filter-tags">
-              {ALL_COUNTRIES.map(c => (
+              {availableCountries.map(c => (
                 <button
                   key={c}
                   className={selectedCountryTab === c ? 'active' : ''}
@@ -510,54 +588,222 @@ export default function App() {
               ))}
             </div>
 
-            <div className="form-box">
-              <h3>➕ [{selectedCountryTab}] 교인 기입 등록</h3>
-              <form onSubmit={handleAddMember}>
-                <div className="form-grid">
-                  <input type="text" placeholder="이름" value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} required />
-                  <select value={newMember.hopeLevel} onChange={e => setNewMember({ ...newMember, hopeLevel: Number(e.target.value) })}>
-                    {[5, 4, 3, 2, 1].map(lvl => (
-                      <option key={lvl} value={lvl}>Hope {lvl} ({HOPE_LEVELS[lvl].desc})</option>
-                    ))}
-                  </select>
-                  <input type="number" placeholder="나이" value={newMember.age || ''} onChange={e => setNewMember({ ...newMember, age: Number(e.target.value) })} />
-                  <input type="text" placeholder="생일" value={newMember.birthday} onChange={e => setNewMember({ ...newMember, birthday: e.target.value })} />
-                  <input type="text" placeholder="가족현황" value={newMember.familyStatus} onChange={e => setNewMember({ ...newMember, familyStatus: e.target.value })} />
-                  <input type="text" placeholder="신앙현황(불교,힌두교)" value={newMember.faithStatus} onChange={e => setNewMember({ ...newMember, faithStatus: e.target.value })} />
-                </div>
-                <input type="text" placeholder="주소 (구글 맵 클릭용)" className="input-full mb-12" value={newMember.address} onChange={e => setNewMember({ ...newMember, address: e.target.value })} />
-                <button type="submit" className="btn-primary">교인 등록</button>
-              </form>
+            {/* 교인등록 아코디언 버튼 */}
+            <div className="add-member-accordion-bar">
+              <button 
+                type="button"
+                className={`btn-toggle-add ${showAddForm ? 'open' : ''}`}
+                onClick={() => setShowAddForm(!showAddForm)}
+              >
+                {showAddForm ? '➖ 교인등록 폼 닫기' : '➕ 교인등록'}
+              </button>
             </div>
 
-            <div className="member-list">
-              {members.filter(m => m.country === selectedCountryTab).map(m => (
-                <div key={m.id} className="member-card">
-                  <div className="member-header">
-                    <div>
-                      <strong className="member-name cursor-pointer" onClick={() => setViewingMember(m)}>
-                        {m.name}
-                      </strong>
-                      <span className="country-badge">{m.country}</span>
-                      <span className={`hope-badge hope-${m.hopeLevel}`}>{HOPE_LEVELS[m.hopeLevel].title}</span>
-                    </div>
-                    <div>
-                      <button className="btn-edit-sm" onClick={() => setViewingMember(m)}>신상보기</button>
-                    </div>
-                  </div>
+            {/* 교인등록 아코디언 내용 */}
+            {showAddForm && (
+              <div className="form-box accordion-content">
+                <h3>➕ [{selectedCountryTab}] 교인 신규 기입</h3>
+                <form onSubmit={handleAddMember}>
+                  <div className="form-grid mb-8">
+                    <input type="text" placeholder="이름 *" value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} required />
+                    
+                    {/* 국가 선택 드롭다운 */}
+                    <select 
+                      value={newMember.country} 
+                      onChange={e => setNewMember({ ...newMember, country: e.target.value })}
+                    >
+                      {availableCountries.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="기타">기타 (직접입력)</option>
+                    </select>
 
-                  <div className="checkbox-group">
-                    <label className="checkbox-label">
-                      <input type="checkbox" checked={m.isVisitationTarget} onChange={() => handleToggleTarget(m.id, 'visitation')} />
-                      심방예배 대상자 등록
-                    </label>
-                    <label className="checkbox-label">
-                      <input type="checkbox" checked={m.isRegularTarget} onChange={() => handleToggleTarget(m.id, 'regular')} />
-                      정시예배 대상자 등록
-                    </label>
+                    {newMember.country === '기타' && (
+                      <input 
+                        type="text" 
+                        placeholder="국가명 직접 입력 *" 
+                        value={newMember.customCountry} 
+                        onChange={e => setNewMember({ ...newMember, customCountry: e.target.value })}
+                        required 
+                      />
+                    )}
+
+                    <select value={newMember.hopeLevel} onChange={e => setNewMember({ ...newMember, hopeLevel: Number(e.target.value) })}>
+                      {[5, 4, 3, 2, 1].map(lvl => (
+                        <option key={lvl} value={lvl}>Hope {lvl} ({HOPE_LEVELS[lvl].desc})</option>
+                      ))}
+                    </select>
+                    <input type="number" placeholder="나이" value={newMember.age || ''} onChange={e => setNewMember({ ...newMember, age: Number(e.target.value) })} />
+                    <input type="text" placeholder="생일" value={newMember.birthday} onChange={e => setNewMember({ ...newMember, birthday: e.target.value })} />
+                    
+                    {/* 전화번호 & 이메일 추가 */}
+                    <input type="text" placeholder="전화번호" value={newMember.phone} onChange={e => setNewMember({ ...newMember, phone: e.target.value })} />
+                    <input type="email" placeholder="이메일" value={newMember.email} onChange={e => setNewMember({ ...newMember, email: e.target.value })} />
+
+                    <input type="text" placeholder="가족현황" value={newMember.familyStatus} onChange={e => setNewMember({ ...newMember, familyStatus: e.target.value })} />
+                    <input type="text" placeholder="기존신앙(불교,힌두교 등)" value={newMember.faithStatus} onChange={e => setNewMember({ ...newMember, faithStatus: e.target.value })} />
                   </div>
-                </div>
-              ))}
+                  <input type="text" placeholder="주소 (구글 맵 클릭용)" className="input-full mb-12" value={newMember.address} onChange={e => setNewMember({ ...newMember, address: e.target.value })} />
+                  <button type="submit" className="btn-primary">교인 등록 저장</button>
+                </form>
+              </div>
+            )}
+
+            {/* 교인 리스트 */}
+            <div className="member-list">
+              {members.filter(m => m.country === selectedCountryTab).map(m => {
+                const isExpanded = expandedMemberId === m.id
+                const visitationStats = getMember5WeekStats(m.id, visitations)
+                const regularStats = getMember5WeekStats(m.id, regularRecords)
+
+                return (
+                  <div key={m.id} className="member-card">
+                    {/* 메인 요약 바 (요구사항 1: 나라, Hope, 나이, 심방/정시통계 기본 노출) */}
+                    <div className="member-header">
+                      <div className="member-basic-info" onClick={() => setExpandedMemberId(isExpanded ? null : m.id)}>
+                        <strong className="member-name">{m.name}</strong>
+                        <span className="country-badge">{m.country}</span>
+                        <span className={`hope-badge hope-${m.hopeLevel}`}>{HOPE_LEVELS[m.hopeLevel].title}</span>
+                        {m.age > 0 && <span className="info-chip">{m.age}세</span>}
+                        
+                        {/* 심방예배 대상자일 경우 통계 노출 */}
+                        {m.isVisitationTarget && (
+                          <span className="stat-tag visitation">심방: {visitationStats}</span>
+                        )}
+                        {/* 정시예배 대상자일 경우 통계 노출 */}
+                        {m.isRegularTarget && (
+                          <span className="stat-tag regular">정시: {regularStats}</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <button 
+                          className="btn-edit-sm" 
+                          onClick={() => setExpandedMemberId(isExpanded ? null : m.id)}
+                        >
+                          {isExpanded ? '접기 ▲' : '신상보기 ▼'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 신상보기 눌렀을 때 늘어지는 영역 (요구사항 2) */}
+                    {isExpanded && (
+                      <div className="member-expanded-details">
+                        <div className="detail-rows mb-12">
+                          <p><strong>Hope:</strong> {HOPE_LEVELS[m.hopeLevel].desc}</p>
+                          {m.birthday && <p><strong>생일:</strong> {m.birthday}</p>}
+                          
+                          {/* 미기입 시 항목 자체가 안 보임 */}
+                          {m.phone && <p><strong>전화번호:</strong> <a href={`tel:${m.phone}`} className="phone-link">{m.phone}</a></p>}
+                          {m.email && <p><strong>이메일:</strong> <a href={`mailto:${m.email}`} className="email-link">{m.email}</a></p>}
+                          
+                          {m.familyStatus && <p><strong>가족현황:</strong> {m.familyStatus}</p>}
+                          {m.faithStatus && <p><strong>기존신앙:</strong> {m.faithStatus}</p>}
+                          {m.address && (
+                            <p>
+                              <strong>주소:</strong> {m.address}
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="map-link"
+                              >
+                                🗺️ 구글 지도
+                              </a>
+                            </p>
+                          )}
+                          <p><strong>최근5주 심방:</strong> {visitationStats}</p>
+                          <p><strong>최근5주 예배:</strong> {regularStats}</p>
+                        </div>
+
+                        {/* 대상자 등록 체크박스 (안으로 이동) */}
+                        <div className="checkbox-group mb-12">
+                          <label className="checkbox-label">
+                            <input 
+                              type="checkbox" 
+                              checked={m.isVisitationTarget} 
+                              onChange={() => handleToggleTarget(m.id, 'visitation')} 
+                            />
+                            심방예배 대상자 등록
+                          </label>
+                          <label className="checkbox-label">
+                            <input 
+                              type="checkbox" 
+                              checked={m.isRegularTarget} 
+                              onChange={() => handleToggleTarget(m.id, 'regular')} 
+                            />
+                            정시예배 대상자 등록
+                          </label>
+                        </div>
+
+                        {/* 성도기록 (채팅 형태 누적 관리) */}
+                        <div className="member-notes-container">
+                          <h4>💬 성도기록 (누적 관리)</h4>
+                          
+                          <div className="notes-chat-list">
+                            {(!m.notes || m.notes.length === 0) ? (
+                              <p className="no-notes">기록된 성도 정보가 없습니다.</p>
+                            ) : (
+                              m.notes.map(note => (
+                                <div key={note.id} className="note-chat-bubble">
+                                  <div className="note-bubble-header">
+                                    <span className="note-author">👤 {note.author}</span>
+                                    <span className="note-time">{note.createdAt}</span>
+                                    <button 
+                                      className="btn-note-del" 
+                                      onClick={() => handleDeleteMemberNote(m.id, note.id)}
+                                      title="기록 삭제"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                  <div className="note-bubble-content">{note.content}</div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* 채팅식 입력 영역 */}
+                          <div className="note-input-row">
+                            <input
+                              type="text"
+                              placeholder="성도에 대한 기록 입력..."
+                              value={newNoteInput[m.id] || ''}
+                              onChange={e => setNewNoteInput({ ...newNoteInput, [m.id]: e.target.value })}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleAddMemberNote(m.id)
+                              }}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn-secondary"
+                              onClick={() => handleAddMemberNote(m.id)}
+                            >
+                              기록
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 정보 수정 & 삭제 */}
+                        <div className="expanded-actions">
+                          <button 
+                            className="btn-secondary-sm" 
+                            onClick={() => setEditingMember(m)}
+                          >
+                            ✏️ 정보 수정
+                          </button>
+                          <button 
+                            className="btn-danger-sm" 
+                            onClick={() => handleDeleteMember(m.id)}
+                          >
+                            🗑️ 교인 삭제
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </section>
         )}
@@ -567,14 +813,22 @@ export default function App() {
           <section className="tab-content text-left">
             <h2>🏃‍♂️ 심방예배 (주 1회 체크)</h2>
 
+            {/* 요구사항 3: 5주/4주/3주/2주/지난주 출석 현황 노출 */}
             <div className="info-card">
-              <h3>📊 심방 전체 통계 (10주 / 4주 / 지난주)</h3>
-              <p style={{ fontSize: '1.2rem', color: '#38bdf8', fontWeight: 'bold' }}>
-                전체 누적: ({getTotalStats(visitations)})
-              </p>
+              <h3>📊 최근 5주 심방 출석 현황</h3>
+              <div className="recent-5weeks-grid">
+                {recent5WeeksData.map((w) => {
+                  const count = visitations.filter(v => v.weekKey === w.weekKey).length
+                  return (
+                    <div key={w.weekKey} className="week-stat-box">
+                      <span className="week-tag">{w.labelName} ({w.weekLabel})</span>
+                      <span className="week-count">{count}명</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
-            {/* 최상단: 이번 주차 및 대상 교인 이름 버튼 박스 */}
             <div className="form-box">
               <h3>📅 오늘 기준: {currentWeekInfo.weekLabel} 심방 참석 체크</h3>
               <p className="subtitle mb-12">이름 버튼을 클릭하면 이번 주 참석 명단에 추가/취소 토글됩니다.</p>
@@ -584,7 +838,7 @@ export default function App() {
                   const isCheckedThisWeek = visitations.some(
                     v => v.memberId === m.id && v.weekKey === currentWeekInfo.weekKey
                   )
-                  const stats = getMemberStats(m.id, visitations)
+                  const stats = getMember5WeekStats(m.id, visitations)
 
                   return (
                     <button
@@ -600,7 +854,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 하단: 주별 심방 리스트 */}
             <h3>📜 주별 심방 명단 리스트</h3>
             <div className="visitation-list">
               {groupedVisitations.length === 0 ? (
@@ -612,26 +865,20 @@ export default function App() {
                       🗓️ {group.weekLabel} (총 {group.records.length}명)
                     </h4>
                     <div className="member-list">
-                      {group.records.map(r => {
-                        const m = members.find(mem => mem.id === r.memberId)
-                        return (
-                          <div key={r.id} className="visitation-record-box">
-                            <div className="visitation-record-header">
-                              <span
-                                style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                                onClick={() => m && setViewingMember(m)}
-                              >
-                                👤 <strong>{r.memberName}</strong> ({r.visitedAt})
-                              </span>
-                              <button className="btn-danger-sm" onClick={() => {
-                                const updated = visitations.filter(v => v.id !== r.id)
-                                setVisitations(updated)
-                                saveDataToFirebase(introData, members, updated, regularRecords, sermons)
-                              }}>취소</button>
-                            </div>
+                      {group.records.map(r => (
+                        <div key={r.id} className="visitation-record-box">
+                          <div className="visitation-record-header">
+                            <span>
+                              👤 <strong>{r.memberName}</strong> ({r.visitedAt})
+                            </span>
+                            <button className="btn-danger-sm" onClick={() => {
+                              const updated = visitations.filter(v => v.id !== r.id)
+                              setVisitations(updated)
+                              saveDataToFirebase(introData, members, updated, regularRecords, sermons)
+                            }}>취소</button>
                           </div>
-                        )
-                      })}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))
@@ -645,14 +892,22 @@ export default function App() {
           <section className="tab-content text-left">
             <h2>⛪ 주일 정시예배 (주일 11시)</h2>
 
+            {/* 요구사항 3: 5주/4주/3주/2주/지난주 출석 현황 노출 */}
             <div className="info-card">
-              <h3>📊 정시예배 전체 통계 (10주 / 4주 / 지난주)</h3>
-              <p style={{ fontSize: '1.2rem', color: '#38bdf8', fontWeight: 'bold' }}>
-                전체 누적: ({getTotalStats(regularRecords)})
-              </p>
+              <h3>📊 최근 5주 정시예배 출석 현황</h3>
+              <div className="recent-5weeks-grid">
+                {recent5WeeksData.map((w) => {
+                  const count = regularRecords.filter(r => r.weekKey === w.weekKey).length
+                  return (
+                    <div key={w.weekKey} className="week-stat-box">
+                      <span className="week-tag">{w.labelName} ({w.weekLabel})</span>
+                      <span className="week-count">{count}명</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
-            {/* 최상단: 버튼 박스 (토글) */}
             <div className="form-box">
               <h3>📅 오늘 기준: {currentWeekInfo.weekLabel} 정시예배 참석 체크</h3>
               <p className="subtitle mb-12">버튼을 눌러 참석자를 추가/취소하세요 (시간 표기 없이 이름만 기록).</p>
@@ -662,7 +917,7 @@ export default function App() {
                   const isCheckedThisWeek = regularRecords.some(
                     r => r.memberId === m.id && r.weekKey === currentWeekInfo.weekKey
                   )
-                  const stats = getMemberStats(m.id, regularRecords)
+                  const stats = getMember5WeekStats(m.id, regularRecords)
 
                   return (
                     <button
@@ -678,7 +933,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 주별 명단 리스트 (시간 없이 이름만 나열) */}
             <h3>📜 주별 정시예배 명단</h3>
             <div className="visitation-list">
               {groupedRegulars.length === 0 ? (
@@ -690,19 +944,15 @@ export default function App() {
                       🗓️ {group.weekLabel} 참석자 ({group.records.length}명)
                     </h4>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {group.records.map(r => {
-                        const m = members.find(mem => mem.id === r.memberId)
-                        return (
-                          <span
-                            key={r.id}
-                            className="country-badge"
-                            style={{ cursor: 'pointer', padding: '6px 12px', fontSize: '0.85rem' }}
-                            onClick={() => m && setViewingMember(m)}
-                          >
-                            👤 {r.memberName}
-                          </span>
-                        )
-                      })}
+                      {group.records.map(r => (
+                        <span
+                          key={r.id}
+                          className="country-badge"
+                          style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                        >
+                          👤 {r.memberName}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 ))
@@ -716,7 +966,7 @@ export default function App() {
           <section className="tab-content text-left">
             <h2>📜 말씀 저장소</h2>
             <div className="form-box">
-              <h3>✍️ 말씀 작성 (작성자: {adminUser})</h3>
+              <h3>✍️ 말씀작성 ({adminUser})</h3>
               <form onSubmit={handleSaveSermon}>
                 <input type="text" placeholder="말씀 제목" className="input-full mb-8" value={sermonTitle} onChange={e => setSermonTitle(e.target.value)} required />
                 <input type="text" placeholder="성경 구절" className="input-full mb-8" value={sermonScripture} onChange={e => setSermonScripture(e.target.value)} />
@@ -731,7 +981,7 @@ export default function App() {
                   <div className="sermon-header">
                     <div>
                       <h3>{s.title}</h3>
-                      <span className="subtitle">작성자: {s.authorId} · {s.date}</span>
+                      <span className="subtitle">{s.date}({s.authorId})</span>
                     </div>
                     <button className="btn-danger-sm" onClick={() => {
                       const updated = sermons.filter(item => item.id !== s.id)
@@ -748,63 +998,30 @@ export default function App() {
         )}
       </main>
 
-      {/* 교인 신상 명세 확인 모달 (수정/삭제 가능) */}
-      {viewingMember && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>👤 교인 신상명세서</h3>
-            <div className="member-details mb-12" style={{ display: 'block', textAlign: 'left', lineHeight: '1.8' }}>
-              <p><strong>이름:</strong> {viewingMember.name}</p>
-              <p><strong>국적:</strong> {viewingMember.country}</p>
-              <p><strong>Hope Level:</strong> Hope {viewingMember.hopeLevel} ({HOPE_LEVELS[viewingMember.hopeLevel].desc})</p>
-              <p><strong>나이/생일:</strong> {viewingMember.age}세 / {viewingMember.birthday || '미입력'}</p>
-              <p><strong>가족현황:</strong> {viewingMember.familyStatus || '없음'}</p>
-              <p><strong>신앙현황:</strong> {viewingMember.faithStatus}</p>
-              <p>
-                <strong>주소:</strong> {viewingMember.address || '미입력'}
-                {viewingMember.address && (
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(viewingMember.address)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="map-link"
-                  >
-                    🗺️ 구글 지도
-                  </a>
-                )}
-              </p>
-              <p><strong>심방 통계 (10주/4주/1주):</strong> {getMemberStats(viewingMember.id, visitations)}</p>
-              <p><strong>정시예배 통계 (10주/4주/1주):</strong> {getMemberStats(viewingMember.id, regularRecords)}</p>
-            </div>
-
-            <div className="modal-buttons">
-              <button className="btn-confirm" onClick={() => {
-                setEditingMember(viewingMember)
-                setViewingMember(null)
-              }}>✏️ 정보 수정</button>
-              <button className="btn-cancel" style={{ background: '#ef4444' }} onClick={() => handleDeleteMember(viewingMember.id)}>🗑️ 교인 삭제</button>
-              <button className="btn-cancel" onClick={() => setViewingMember(null)}>닫기</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 교인 수정 모달 */}
       {editingMember && (
         <div className="modal-overlay">
           <div className="modal-content">
             <h3>✏️ 교인 정보 수정</h3>
-            <input type="text" value={editingMember.name} onChange={e => setEditingMember({ ...editingMember, name: e.target.value })} />
+            <input type="text" value={editingMember.name} onChange={e => setEditingMember({ ...editingMember, name: e.target.value })} placeholder="이름" />
+            
+            <input type="text" value={editingMember.country} onChange={e => setEditingMember({ ...editingMember, country: e.target.value })} placeholder="국가" />
+
             <select value={editingMember.hopeLevel} onChange={e => setEditingMember({ ...editingMember, hopeLevel: Number(e.target.value) })}>
               {[5, 4, 3, 2, 1].map(lvl => (
                 <option key={lvl} value={lvl}>Hope {lvl} - {HOPE_LEVELS[lvl].desc}</option>
               ))}
             </select>
-            <input type="number" value={editingMember.age} onChange={e => setEditingMember({ ...editingMember, age: Number(e.target.value) })} />
-            <input type="text" value={editingMember.birthday} onChange={e => setEditingMember({ ...editingMember, birthday: e.target.value })} />
-            <input type="text" value={editingMember.address} onChange={e => setEditingMember({ ...editingMember, address: e.target.value })} />
-            <input type="text" value={editingMember.familyStatus} onChange={e => setEditingMember({ ...editingMember, familyStatus: e.target.value })} />
-            <input type="text" value={editingMember.faithStatus} onChange={e => setEditingMember({ ...editingMember, faithStatus: e.target.value })} />
+            <input type="number" value={editingMember.age || ''} onChange={e => setEditingMember({ ...editingMember, age: Number(e.target.value) })} placeholder="나이" />
+            <input type="text" value={editingMember.birthday || ''} onChange={e => setEditingMember({ ...editingMember, birthday: e.target.value })} placeholder="생일" />
+            
+            <input type="text" value={editingMember.phone || ''} onChange={e => setEditingMember({ ...editingMember, phone: e.target.value })} placeholder="전화번호" />
+            <input type="email" value={editingMember.email || ''} onChange={e => setEditingMember({ ...editingMember, email: e.target.value })} placeholder="이메일" />
+
+            <input type="text" value={editingMember.address || ''} onChange={e => setEditingMember({ ...editingMember, address: e.target.value })} placeholder="주소" />
+            <input type="text" value={editingMember.familyStatus || ''} onChange={e => setEditingMember({ ...editingMember, familyStatus: e.target.value })} placeholder="가족현황" />
+            <input type="text" value={editingMember.faithStatus || ''} onChange={e => setEditingMember({ ...editingMember, faithStatus: e.target.value })} placeholder="기존신앙" />
+            
             <div className="modal-buttons">
               <button className="btn-confirm" onClick={handleUpdateMember}>저장</button>
               <button className="btn-cancel" onClick={() => setEditingMember(null)}>취소</button>
