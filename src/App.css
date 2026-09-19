@@ -1028,3 +1028,58 @@ input:focus, select:focus, textarea:focus {
     overflow-y: auto;
   }
 }
+
+/* ==========================================================================
+   신상명세(상세보기) 프로필 사진 스타일
+   ========================================================================== */
+.member-expanded-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.expanded-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px; /* 부드러운 라운드 스퀘어 스타일 */
+  object-fit: cover;
+  border: 2px solid var(--accent-cyan);
+  box-shadow: var(--shadow-sm);
+}
+
+.expanded-avatar-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: var(--accent-cyan);
+}
+
+.expanded-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expanded-profile-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* 모달 내 미리보기 사진 크기 조절 */
+.photo-preview img {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 2px solid var(--accent-cyan);
+}
