@@ -286,19 +286,63 @@ export default function App() {
   }, [members])
 
   // 사진 이미지 변환 처리
+  // 모바일 업로드 오류 방지: 이미지를 캔버스에서 800px 이하로 압축 변환
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const base64 = reader.result as string
-      if (isEdit && editingMember) {
-        setEditingMember({ ...editingMember, photoUrl: base64 })
-      } else {
-        setNewMember({ ...newMember, photoUrl: base64 })
-      }
+    // 이미지 파일 여부 확인
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.')
+      return
     }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        // 1. 최대 해상도 제한 (800px)
+        const MAX_WIDTH = 800
+        const MAX_HEIGHT = 800
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width)
+            width = MAX_WIDTH
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height)
+            height = MAX_HEIGHT
+          }
+        }
+
+        // 2. Canvas를 이용한 리사이징 & 압축
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // 3. JPEG 포맷, 화질 70%로 용량 획기적 축소 (보통 몇 MB -> 50KB~100KB 내외로 줄어듦)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7)
+
+        if (isEdit && editingMember) {
+          setEditingMember({ ...editingMember, photoUrl: compressedBase64 })
+        } else {
+          setNewMember({ ...newMember, photoUrl: compressedBase64 })
+        }
+      }
+      img.onerror = () => {
+        alert('이미지를 불러오는 중 오류가 발생했습니다.')
+      }
+      img.src = event.target?.result as string
+    }
+
     reader.readAsDataURL(file)
   }
 
