@@ -897,7 +897,7 @@ export default function App() {
                           className="btn-edit-sm" 
                           onClick={() => setExpandedMemberId(isExpanded ? null : m.id)}
                         >
-                          {isExpanded ? '접기 ▲' : '신상보기 ▼'}
+                          {isExpanded ? '접기 ▲' : '상세 ▼'}
                         </button>
                       </div>
                     </div>
