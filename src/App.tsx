@@ -320,7 +320,7 @@ export default function App() {
 
     const pattern3 = getMember3WeekStats(memberId, visitations);
 
-    return `전체: ${totalCount}회 / 최근10주: ${recent10Count}회 / 최근3주: ${pattern3}`;
+    return `전체: ${totalCount}회 /근10주: ${recent10Count}회 /근3주: ${pattern3}`;
   }
 
   // 신상명세용 10주 정시예배 전체 현황 계산
@@ -337,7 +337,7 @@ export default function App() {
 
     const pattern3 = getMember3WeekStats(memberId, regularRecords);
 
-    return `전체: ${totalCount}회 / 최근10주: ${recent10Count}회 / 최근3주: ${pattern3}`;
+    return `전체: ${totalCount}회 /근10주: ${recent10Count}회 /근3주: ${pattern3}`;
   }
 
   const recent5WeeksData = useMemo(() => {
