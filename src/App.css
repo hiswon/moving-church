@@ -1041,8 +1041,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .expanded-avatar {
-  width: 80px;
-  height: 80px;
+  width: 200px;
+  height: 200px;
   border-radius: 16px; /* 부드러운 라운드 스퀘어 스타일 */
   object-fit: cover;
   border: 2px solid var(--accent-cyan);
