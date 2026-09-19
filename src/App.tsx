@@ -31,14 +31,14 @@ export interface Member {
   name: string
   country: CountryType
   hopeLevel: number
-  age: number
   birthday?: string
+  gifts?: string // 선물기입란
   phone?: string
   email?: string
   address?: string
   familyStatus?: string
   faithStatus?: string
-  photoUrl?: string // 1. 사진 업로드 관련
+  photoUrl?: string
   isVisitationTarget: boolean
   isRegularTarget: boolean
   notes?: MemberNote[]
@@ -81,6 +81,44 @@ export interface IntroData {
 
 const HEADER_BG = frontPic
 
+// 생일 입력값(1981,8,1 또는 81,8,1 또는 1981-08-01 등)으로 나이 자동 계산
+function calculateAge(birthdayStr?: string): { age: number; formatted: string } | null {
+  if (!birthdayStr || !birthdayStr.trim()) return null;
+
+  const cleaned = birthdayStr.trim().replace(/[\.,\s\/-]+/g, '-');
+  const parts = cleaned.split('-');
+
+  if (parts.length < 3) return null;
+
+  let year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+  if (year < 100) {
+    const currentYearShort = new Date().getFullYear() % 100;
+    if (year <= currentYearShort) {
+      year += 2000;
+    } else {
+      year += 1900;
+    }
+  }
+
+  const today = new Date();
+  const birthDate = new Date(year, month, day);
+
+  if (isNaN(birthDate.getTime())) return null;
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  return { age: Math.max(0, age), formatted: `${year}.${month + 1}.${day}` };
+}
+
 function getCustomWeekInfo(dateInput: Date = new Date(), offsetWeeks: number = 0) {
   const d = new Date(dateInput)
   d.setDate(d.getDate() + offsetWeeks * 7)
@@ -106,7 +144,6 @@ function getCustomWeekInfo(dateInput: Date = new Date(), offsetWeeks: number = 0
   const weekKey = `${year}-${String(month).padStart(2, '0')}-W${weekNum}`
   const weekLabel = `${year}년 ${month}월 ${weekNum}주`
   
-  // 5. 기준 일요일 날짜 문자열 추가
   const sundayFormatted = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`
 
   return { year, month, weekNum, weekKey, weekLabel, sunday, sundayFormatted }
@@ -153,7 +190,6 @@ export default function App() {
   const [loginId, setLoginId] = useState('')
   const [loginPw, setLoginPw] = useState('')
 
-  // 과거 기록 입력을 위한 날짜 선택 상태 (기본값: 오늘)
   const [visitationTargetDate, setVisitationTargetDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   )
@@ -161,26 +197,22 @@ export default function App() {
     new Date().toISOString().split('T')[0]
   )
 
-  // 4. 주별 명단 아코디언 토글 상태
   const [expandedVisitationWeeks, setExpandedVisitationWeeks] = useState<Record<string, boolean>>({})
   const [expandedRegularWeeks, setExpandedRegularWeeks] = useState<Record<string, boolean>>({})
 
-  // 조회 탭용 국가선택
   const [selectedCountryTab, setSelectedCountryTab] = useState<string>('태국')
   const [showAddForm, setShowAddForm] = useState<boolean>(false)
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null)
   const [newNoteInput, setNewNoteInput] = useState<Record<string, string>>({})
 
-  // 폼 내부 독자적 나라 선택용 상태 (기본값 태국)
   const [formCountry, setFormCountry] = useState<string>('태국')
 
-  // 교인등록 폼 입력값
   const [newMember, setNewMember] = useState({
     name: '',
     customCountry: '',
     hopeLevel: 5,
-    age: 0,
     birthday: '',
+    gifts: '',
     phone: '',
     email: '',
     address: '',
@@ -193,7 +225,6 @@ export default function App() {
 
   const [editingMember, setEditingMember] = useState<Member | null>(null)
 
-  // 3. 말씀 수정 및 생성 폼
   const [sermonTitle, setSermonTitle] = useState('')
   const [sermonScripture, setSermonScripture] = useState('')
   const [sermonContent, setSermonContent] = useState('')
@@ -224,7 +255,6 @@ export default function App() {
     fetchData()
   }, [])
 
-  // Firebase 저장 함수
   const saveDataToFirebase = async (
     iData = introData,
     mList = members,
@@ -276,6 +306,40 @@ export default function App() {
     return statusPattern
   }
 
+  // 신상명세용 10주 심방 전체 현황 계산
+  const getMember10WeekVisitationStats = (memberId: string) => {
+    const totalCount = visitations.filter(v => v.memberId === memberId).length;
+
+    let recent10Count = 0;
+    for (let i = 1; i <= 10; i++) {
+      const wInfo = getCustomWeekInfo(new Date(), -i);
+      if (visitations.some(v => v.memberId === memberId && v.weekKey === wInfo.weekKey)) {
+        recent10Count++;
+      }
+    }
+
+    const pattern3 = getMember3WeekStats(memberId, visitations);
+
+    return `전체: ${totalCount}회 / 최근10주: ${recent10Count}회 / 최근3주: ${pattern3}`;
+  }
+
+  // 신상명세용 10주 정시예배 전체 현황 계산
+  const getMember10WeekRegularStats = (memberId: string) => {
+    const totalCount = regularRecords.filter(r => r.memberId === memberId).length;
+
+    let recent10Count = 0;
+    for (let i = 1; i <= 10; i++) {
+      const wInfo = getCustomWeekInfo(new Date(), -i);
+      if (regularRecords.some(r => r.memberId === memberId && r.weekKey === wInfo.weekKey)) {
+        recent10Count++;
+      }
+    }
+
+    const pattern3 = getMember3WeekStats(memberId, regularRecords);
+
+    return `전체: ${totalCount}회 / 최근10주: ${recent10Count}회 / 최근3주: ${pattern3}`;
+  }
+
   const recent5WeeksData = useMemo(() => {
     return getRecent5WeeksInfo(new Date())
   }, [])
@@ -285,13 +349,10 @@ export default function App() {
     return Array.from(new Set([...ALL_COUNTRIES, ...customCountries]))
   }, [members])
 
-  // 사진 이미지 변환 처리
-  // 모바일 업로드 오류 방지: 이미지를 캔버스에서 800px 이하로 압축 변환
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // 이미지 파일 여부 확인
     if (!file.type.startsWith('image/')) {
       alert('이미지 파일만 업로드할 수 있습니다.')
       return
@@ -301,7 +362,6 @@ export default function App() {
     reader.onload = (event) => {
       const img = new Image()
       img.onload = () => {
-        // 1. 최대 해상도 제한 (800px)
         const MAX_WIDTH = 800
         const MAX_HEIGHT = 800
         let width = img.width
@@ -319,7 +379,6 @@ export default function App() {
           }
         }
 
-        // 2. Canvas를 이용한 리사이징 & 압축
         const canvas = document.createElement('canvas')
         canvas.width = width
         canvas.height = height
@@ -327,8 +386,6 @@ export default function App() {
         if (!ctx) return
 
         ctx.drawImage(img, 0, 0, width, height)
-
-        // 3. JPEG 포맷, 화질 70%로 용량 획기적 축소 (보통 몇 MB -> 50KB~100KB 내외로 줄어듦)
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7)
 
         if (isEdit && editingMember) {
@@ -346,7 +403,6 @@ export default function App() {
     reader.readAsDataURL(file)
   }
 
-  // --- 교인 등록 ---
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -370,8 +426,8 @@ export default function App() {
       name: newMember.name.trim(),
       country: finalCountry,
       hopeLevel: newMember.hopeLevel,
-      age: Number(newMember.age) || 0,
       birthday: newMember.birthday.trim() || "",
+      gifts: newMember.gifts.trim() || "",
       phone: newMember.phone.trim() || "",
       email: newMember.email.trim() || "",
       address: newMember.address.trim() || "",
@@ -393,8 +449,8 @@ export default function App() {
       name: '',
       customCountry: '',
       hopeLevel: 5,
-      age: 0,
       birthday: '',
+      gifts: '',
       phone: '',
       email: '',
       address: '',
@@ -440,7 +496,6 @@ export default function App() {
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
-  // --- 성도기록 ---
   const handleAddMemberNote = async (memberId: string) => {
     const text = newNoteInput[memberId]?.trim()
     if (!text || !adminUser) return
@@ -484,7 +539,6 @@ export default function App() {
     await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons)
   }
 
-  // --- 심방예배 참석 토글 (선택한 날짜 및 시간 반영) ---
   const handleToggleVisitationCheck = async (member: Member) => {
     const targetDate = visitationTargetDate ? new Date(visitationTargetDate) : new Date()
     const { weekKey, weekLabel } = getCustomWeekInfo(targetDate)
@@ -522,7 +576,6 @@ export default function App() {
     await saveDataToFirebase(introData, members, updatedVisitations, regularRecords, sermons)
   }
 
-  // --- 정시예배 참석 토글 (선택한 날짜 반영) ---
   const handleToggleRegularCheck = async (member: Member) => {
     const targetDate = regularTargetDate ? new Date(regularTargetDate) : new Date()
     const { weekKey, weekLabel } = getCustomWeekInfo(targetDate)
@@ -551,7 +604,6 @@ export default function App() {
     await saveDataToFirebase(introData, members, visitations, updatedRecords, sermons)
   }
 
-  // --- 말씀 저장 및 수정 (3. 시간 포함 & 수정 기능) ---
   const handleSaveSermon = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!adminUser || !sermonTitle.trim()) return
@@ -636,7 +688,7 @@ export default function App() {
       <header className="app-header">
         <div className="header-banner" style={{ backgroundImage: `url(${HEADER_BG})` }}>
           <div className="banner-overlay">
-            <span className="badge-neon">GLOBAL WORSHIP COMMUNITY</span>
+            <span className="badge-neon">WORLD VISION FIGHTING</span>
             <h1>Moving His Children</h1>
             <p className="subtitle">이들은 하나님의 자녀입니다.</p>
           </div>
@@ -752,9 +804,8 @@ export default function App() {
 
             {showAddForm && (
               <div className="form-box accordion-content">
-                <h3>➕ 신규 교인 등록 (독립 국가 지정)</h3>
+                <h3>➕ 신규 교인 등록</h3>
                 <form onSubmit={handleAddMember}>
-                  {/* 1. 사진 업로드 관련 */}
                   <div className="photo-upload-container mb-12">
                     <label className="photo-upload-label">
                       📷 프로필 사진 등록
@@ -796,9 +847,10 @@ export default function App() {
                         <option key={lvl} value={lvl}>Hope {lvl} ({HOPE_LEVELS[lvl].desc})</option>
                       ))}
                     </select>
-                    <input type="number" placeholder="나이" value={newMember.age || ''} onChange={e => setNewMember({ ...newMember, age: Number(e.target.value) })} />
-                    <input type="text" placeholder="생일" value={newMember.birthday} onChange={e => setNewMember({ ...newMember, birthday: e.target.value })} />
-                    
+
+                    <input type="text" placeholder="생일 (예: 1981,8,1 또는 81,8,1)" value={newMember.birthday} onChange={e => setNewMember({ ...newMember, birthday: e.target.value })} />
+                    <input type="text" placeholder="선물기입란 (교회 선물 내역)" value={newMember.gifts} onChange={e => setNewMember({ ...newMember, gifts: e.target.value })} />
+
                     <input type="text" placeholder="전화번호" value={newMember.phone} onChange={e => setNewMember({ ...newMember, phone: e.target.value })} />
                     <input type="email" placeholder="이메일" value={newMember.email} onChange={e => setNewMember({ ...newMember, email: e.target.value })} />
 
@@ -816,12 +868,12 @@ export default function App() {
                 const isExpanded = expandedMemberId === m.id
                 const visitationStats = getMember3WeekStats(m.id, visitations)
                 const regularStats = getMember3WeekStats(m.id, regularRecords)
+                const calculatedAgeInfo = calculateAge(m.birthday)
 
                 return (
                   <div key={m.id} className="member-card">
                     <div className="member-header">
                       <div className="member-basic-info" onClick={() => setExpandedMemberId(isExpanded ? null : m.id)}>
-                        {/* 1. 교인 사진 표기 */}
                         {m.photoUrl ? (
                           <img src={m.photoUrl} alt={m.name} className="member-avatar" />
                         ) : (
@@ -830,7 +882,7 @@ export default function App() {
                         <strong className="member-name">{m.name}</strong>
                         <span className="country-badge">{m.country}</span>
                         <span className={`hope-badge hope-${m.hopeLevel}`}>{HOPE_LEVELS[m.hopeLevel].title}</span>
-                        {m.age > 0 && <span className="info-chip">{m.age}세</span>}
+                        {calculatedAgeInfo && <span className="info-chip">만 {calculatedAgeInfo.age}세</span>}
                         
                         {m.isVisitationTarget && (
                           <span className="stat-tag visitation">심방: {visitationStats}</span>
@@ -852,7 +904,6 @@ export default function App() {
 
                     {isExpanded && (
                       <div className="member-expanded-details">
-                                            {/* 1. 신상명세 내부 프로필 사진 표시 영역 추가 */}
                         <div className="member-expanded-profile mb-12">
                           {m.photoUrl ? (
                             <img src={m.photoUrl} alt={m.name} className="expanded-avatar" />
@@ -867,7 +918,21 @@ export default function App() {
 
                         <div className="detail-rows mb-12">
                           <p><strong>Hope:</strong> {HOPE_LEVELS[m.hopeLevel].desc}</p>
-                          {m.birthday && <p><strong>생일:</strong> {m.birthday}</p>}
+                          {m.birthday && (
+                            <p>
+                              <strong>생일:</strong> {m.birthday} 
+                              {calculatedAgeInfo && <span style={{ color: '#38bdf8', marginLeft: '6px' }}>(만 {calculatedAgeInfo.age}세)</span>}
+                            </p>
+                          )}
+                          {/* 심방전체 10주 출력 */}
+                          <p><strong>심방참석:</strong> <span style={{ color: '#a78bfa' }}>{getMember10WeekVisitationStats(m.id)}</span></p>
+                          
+                          {/* 정시전체 10주 출력 추가 */}
+                          <p><strong>정시참석:</strong> <span style={{ color: '#836296' }}>{getMember10WeekRegularStats(m.id)}</span></p>
+
+                          {/* 선물기입란 표시 */}
+                          <p><strong>선물기록:</strong> {m.gifts ? <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>{m.gifts}</span> : <span style={{ color: '#64748b' }}>기록 없음</span>}</p>
+
                           {m.phone && <p><strong>전화번호:</strong> <a href={`tel:${m.phone}`} className="phone-link">{m.phone}</a></p>}
                           {m.email && <p><strong>이메일:</strong> <a href={`mailto:${m.email}`} className="email-link">{m.email}</a></p>}
                           {m.familyStatus && <p><strong>가족현황:</strong> {m.familyStatus}</p>}
@@ -885,8 +950,6 @@ export default function App() {
                               </a>
                             </p>
                           )}
-                          <p><strong>최근3주 심방:</strong> {visitationStats}</p>
-                          <p><strong>최근3주 예배:</strong> {regularStats}</p>
                         </div>
 
                         <div className="checkbox-group mb-12">
@@ -914,7 +977,6 @@ export default function App() {
                             {(!m.notes || m.notes.length === 0) ? (
                               <p className="no-notes">기록된 성도 정보가 없습니다.</p>
                             ) : (
-                              // 2. 최신것을 최고 위로 올리기
                               m.notes.slice().reverse().map(note => (
                                 <div key={note.id} className="note-chat-bubble">
                                   <div className="note-bubble-header">
@@ -984,7 +1046,6 @@ export default function App() {
                   return (
                     <div key={w.weekKey} className="week-stat-box">
                       <span className="week-tag">{w.labelName} ({w.weekLabel})</span>
-                      {/* 5. 기준 일요일 날짜 구체적 표시 */}
                       <span className="week-sunday-date">📅 {w.sundayFormatted} (일)</span>
                       <span className="week-count">{count}명</span>
                     </div>
@@ -997,6 +1058,8 @@ export default function App() {
               {(() => {
                 const selectedDateObj = visitationTargetDate ? new Date(visitationTargetDate) : new Date()
                 const selectedWeekInfo = getCustomWeekInfo(selectedDateObj)
+                const visitationTargets = members.filter(m => m.isVisitationTarget)
+
                 return (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -1012,28 +1075,40 @@ export default function App() {
                       </span>
                     </div>
                     <p className="subtitle mb-12">
-                      선택한 날짜({visitationTargetDate}) 기준으로 출석을 체크합니다. (과거 기록 소급 입력 가능)
+                      선택한 날짜({visitationTargetDate}) 기준으로 출석을 체크합니다.
                     </p>
 
-                    <div className="filter-tags">
-                      {members.filter(m => m.isVisitationTarget).map(m => {
-                        const isChecked = visitations.some(
-                          v => v.memberId === m.id && v.weekKey === selectedWeekInfo.weekKey
-                        )
-                        const stats = getMember3WeekStats(m.id, visitations)
+                    {availableCountries.map(countryName => {
+                      const countryMembers = visitationTargets.filter(m => m.country === countryName)
+                      if (countryMembers.length === 0) return null
 
-                        return (
-                          <button
-                            key={m.id}
-                            className={isChecked ? 'active' : ''}
-                            onClick={() => handleToggleVisitationCheck(m)}
-                            style={{ padding: '8px 14px', fontSize: '0.88rem' }}
-                          >
-                            {isChecked ? '✅ ' : '➕ '}{m.name} ({stats})
-                          </button>
-                        )
-                      })}
-                    </div>
+                      return (
+                        <div key={countryName} style={{ marginBottom: '16px' }}>
+                          <h4 style={{ color: '#38bdf8', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '8px' }}>
+                            🌏 {countryName}
+                          </h4>
+                          <div className="filter-tags">
+                            {countryMembers.map(m => {
+                              const isChecked = visitations.some(
+                                v => v.memberId === m.id && v.weekKey === selectedWeekInfo.weekKey
+                              )
+                              const stats = getMember3WeekStats(m.id, visitations)
+
+                              return (
+                                <button
+                                  key={m.id}
+                                  className={isChecked ? 'active' : ''}
+                                  onClick={() => handleToggleVisitationCheck(m)}
+                                  style={{ padding: '8px 14px', fontSize: '0.88rem' }}
+                                >
+                                  {isChecked ? '✅ ' : '➕ '}{m.name} ({stats})
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </>
                 )
               })()}
@@ -1048,7 +1123,6 @@ export default function App() {
                   const isOpen = expandedVisitationWeeks[wKey] || false
                   return (
                     <div key={wKey} className="accordion-week-card">
-                      {/* 4. 긴 버튼 형태 아코디언 */}
                       <button
                         className="accordion-week-btn"
                         onClick={() =>
@@ -1105,7 +1179,6 @@ export default function App() {
                   return (
                     <div key={w.weekKey} className="week-stat-box">
                       <span className="week-tag">{w.labelName} ({w.weekLabel})</span>
-                      {/* 5. 기준 일요일 날짜 구체적 표시 */}
                       <span className="week-sunday-date">📅 {w.sundayFormatted} (일)</span>
                       <span className="week-count">{count}명</span>
                     </div>
@@ -1118,6 +1191,8 @@ export default function App() {
               {(() => {
                 const selectedDateObj = regularTargetDate ? new Date(regularTargetDate) : new Date()
                 const selectedWeekInfo = getCustomWeekInfo(selectedDateObj)
+                const regularTargets = members.filter(m => m.isRegularTarget)
+
                 return (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -1133,28 +1208,40 @@ export default function App() {
                       </span>
                     </div>
                     <p className="subtitle mb-12">
-                      선택한 날짜({regularTargetDate}) 기준으로 출석을 체크합니다. (과거 기록 소급 입력 가능)
+                      선택한 날짜({regularTargetDate}) 기준으로 출석을 체크합니다.
                     </p>
 
-                    <div className="filter-tags">
-                      {members.filter(m => m.isRegularTarget).map(m => {
-                        const isChecked = regularRecords.some(
-                          r => r.memberId === m.id && r.weekKey === selectedWeekInfo.weekKey
-                        )
-                        const stats = getMember3WeekStats(m.id, regularRecords)
+                    {availableCountries.map(countryName => {
+                      const countryMembers = regularTargets.filter(m => m.country === countryName)
+                      if (countryMembers.length === 0) return null
 
-                        return (
-                          <button
-                            key={m.id}
-                            className={isChecked ? 'active' : ''}
-                            onClick={() => handleToggleRegularCheck(m)}
-                            style={{ padding: '8px 14px', fontSize: '0.88rem' }}
-                          >
-                            {isChecked ? '✅ ' : '➕ '}{m.name} ({stats})
-                          </button>
-                        )
-                      })}
-                    </div>
+                      return (
+                        <div key={countryName} style={{ marginBottom: '16px' }}>
+                          <h4 style={{ color: '#38bdf8', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '8px' }}>
+                            🌏 {countryName}
+                          </h4>
+                          <div className="filter-tags">
+                            {countryMembers.map(m => {
+                              const isChecked = regularRecords.some(
+                                r => r.memberId === m.id && r.weekKey === selectedWeekInfo.weekKey
+                              )
+                              const stats = getMember3WeekStats(m.id, regularRecords)
+
+                              return (
+                                <button
+                                  key={m.id}
+                                  className={isChecked ? 'active' : ''}
+                                  onClick={() => handleToggleRegularCheck(m)}
+                                  style={{ padding: '8px 14px', fontSize: '0.88rem' }}
+                                >
+                                  {isChecked ? '✅ ' : '➕ '}{m.name} ({stats})
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </>
                 )
               })()}
@@ -1169,7 +1256,6 @@ export default function App() {
                   const isOpen = expandedRegularWeeks[wKey] || false
                   return (
                     <div key={wKey} className="accordion-week-card">
-                      {/* 4. 긴 버튼 형태 아코디언 */}
                       <button
                         className="accordion-week-btn"
                         onClick={() =>
@@ -1208,7 +1294,7 @@ export default function App() {
           </section>
         )}
 
-        {/* 5. 말씀 저장 (3. 시간 포함 및 수정 가능) */}
+        {/* 5. 말씀 저장 */}
         {activeTab === 'sermons' && adminUser && (
           <section className="tab-content text-left">
             <h2>📜 말씀 저장소</h2>
@@ -1237,13 +1323,11 @@ export default function App() {
                   <div className="sermon-header">
                     <div>
                       <h3>{s.title}</h3>
-                      {/* 3. 날짜 및 시간 표기 */}
                       <span>
                         👤 <strong>{s.authorId}</strong> ( {s.date}{s.createdAt ? `/ ${s.createdAt}` : ''})
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {/* 3. 수정 버튼 */}
                       <button className="btn-secondary-sm" onClick={() => handleStartEditSermon(s)}>
                         ✏️ 수정
                       </button>
@@ -1269,7 +1353,6 @@ export default function App() {
           <div className="modal-content">
             <h3>✏️ 교인 정보 수정</h3>
 
-            {/* 1. 사진 수정 및 삭제 */}
             <div className="photo-upload-container mb-12">
               <label className="photo-upload-label">
                 📷 프로필 사진 변경
@@ -1292,9 +1375,11 @@ export default function App() {
                 <option key={lvl} value={lvl}>Hope {lvl} - {HOPE_LEVELS[lvl].desc}</option>
               ))}
             </select>
-            <input type="number" value={editingMember.age || ''} onChange={e => setEditingMember({ ...editingMember, age: Number(e.target.value) })} placeholder="나이" />
-            <input type="text" value={editingMember.birthday || ''} onChange={e => setEditingMember({ ...editingMember, birthday: e.target.value })} placeholder="생일" />
             
+            <input type="text" value={editingMember.birthday || ''} onChange={e => setEditingMember({ ...editingMember, birthday: e.target.value })} placeholder="생일 (예: 1981,8,1 또는 81,8,1)" />
+            
+            <input type="text" value={editingMember.gifts || ''} onChange={e => setEditingMember({ ...editingMember, gifts: e.target.value })} placeholder="선물기입란 (교회 선물 내역)" />
+
             <input type="text" value={editingMember.phone || ''} onChange={e => setEditingMember({ ...editingMember, phone: e.target.value })} placeholder="전화번호" />
             <input type="email" value={editingMember.email || ''} onChange={e => setEditingMember({ ...editingMember, email: e.target.value })} placeholder="이메일" />
 

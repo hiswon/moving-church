@@ -68,37 +68,42 @@ body, html {
 
 .header-banner {
   position: relative;
-  height: 180px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  width: 100%;
+  min-height: 180px; /* 고정 height 대신 min-height 사용 */
   background-size: cover;
   background-position: center;
-  box-shadow: var(--shadow-card);
+  border-radius: 12px;
+  overflow: hidden; /* 배경의 라운딩 유지를 위한 설정 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .banner-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.3) 0%, rgba(15, 23, 42, 0.85) 100%);
+  width: 100%;
+  height: 100%;
+  padding: 30px 20px 20px 20px; /* 상단 여백을 30px 이상 주어 글자가 위로 튀어나가는 것 방지 */
+  background: rgba(0, 0, 0, 0.5); /* 자막 읽기 쉽도록 반투명 오버레이 */
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 24px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
+/* 3. 상단 뱃지: display 및 여백 조정 */
 .badge-neon {
-  align-self: flex-start;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: var(--accent-cyan);
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  padding: 4px 10px;
+  display: inline-block;
+  margin-bottom: 8px; /* 아래 제목과의 간격 */
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #38bdf8;
+  background-color: rgba(56, 189, 248, 0.15);
+  border: 1px solid #38bdf8;
   border-radius: 20px;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  backdrop-filter: blur(4px);
+  line-height: 1.2;
 }
 
 .header-banner h1 {
@@ -1041,8 +1046,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .expanded-avatar {
-  width: 200px;
-  height: 200px;
+  width: 180px;
+  height: 180px;
   border-radius: 16px; /* 부드러운 라운드 스퀘어 스타일 */
   object-fit: cover;
   border: 2px solid var(--accent-cyan);
@@ -1082,4 +1087,37 @@ input:focus, select:focus, textarea:focus {
   border-radius: 12px;
   object-fit: cover;
   border: 2px solid var(--accent-cyan);
+}
+
+/* 새로 추가된 스타일: 국가별 출석체크 구분 레이아웃 및 신상명세 요약 박스 */
+.country-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.attendance-country-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.attendance-summary-box {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.attendance-summary-box p {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.attendance-summary-box p:last-child {
+  margin-bottom: 0;
 }
