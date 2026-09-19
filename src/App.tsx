@@ -852,6 +852,19 @@ export default function App() {
 
                     {isExpanded && (
                       <div className="member-expanded-details">
+                                            {/* 1. 신상명세 내부 프로필 사진 표시 영역 추가 */}
+                        <div className="member-expanded-profile mb-12">
+                          {m.photoUrl ? (
+                            <img src={m.photoUrl} alt={m.name} className="expanded-avatar" />
+                          ) : (
+                            <div className="expanded-avatar-placeholder">{m.name.substring(0, 1)}</div>
+                          )}
+                          <div className="expanded-profile-info">
+                            <h3 className="expanded-profile-name">{m.name}</h3>
+                            <span className="country-badge">{m.country}</span>
+                          </div>
+                        </div>
+
                         <div className="detail-rows mb-12">
                           <p><strong>Hope:</strong> {HOPE_LEVELS[m.hopeLevel].desc}</p>
                           {m.birthday && <p><strong>생일:</strong> {m.birthday}</p>}
