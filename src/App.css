@@ -1131,3 +1131,49 @@ input:focus, select:focus, textarea:focus {
   border-radius: var(--radius-sm);
   animation: fadeIn 0.2s ease-in-out;
 }
+
+/* ==========================================================================
+   말씀저장소 5줄 접기/펴기 & 날짜/시간 사이즈 축소 스타일
+   ========================================================================== */
+
+/* 1. 날짜 및 시간 폰트 크기 축소 */
+.sermon-author-date {
+  font-size: 0.75rem; /* 기존보다 작게 설정 */
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* 2. 본문 기본 스타일 및 클릭 토글 */
+.sermon-content-box {
+  margin-top: 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  cursor: pointer;
+  transition: max-height 0.3s ease;
+}
+
+/* 3. 기본 5줄 접힘 스타일 */
+.sermon-content-box.collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  
+  /* 표준 속성 및 벤더 프리픽스 함께 제공 */
+  line-clamp: 5;
+  -webkit-line-clamp: 5;
+  
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 4. 더보기/접기 안내 힌트 텍스트 */
+.sermon-expand-hint {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
+  font-weight: 600;
+  cursor: pointer;
+}
+.sermon-expand-hint:hover {
+  text-decoration: underline;
+}

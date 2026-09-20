@@ -253,6 +253,17 @@ export default function App() {
   const [sermonContent, setSermonContent] = useState('')
   const [editingSermon, setEditingSermon] = useState<Sermon | null>(null)
 
+  // 말씀저장소 접기/펴기 상태 관리
+  const [expandedSermonIds, setExpandedSermonIds] = useState<Record<string, boolean>>({})
+
+  // 토글 함수
+  const toggleSermonExpand = (id: string) => {
+    setExpandedSermonIds(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }))
+  }
+
   useEffect(() => {
     if (adminUser) sessionStorage.setItem('church_admin_user', adminUser)
     else sessionStorage.removeItem('church_admin_user')
@@ -1583,32 +1594,58 @@ export default function App() {
                 </div>
               </form>
             </div>
-
             <div className="sermon-list">
-              {sermons.map(s => (
-                <article key={s.id} className="sermon-card">
-                  <div className="sermon-header">
-                    <div>
-                      <h3>{s.title}</h3>
-                      <span>
-                        👤 <strong>{s.authorId}</strong> ( {s.date}{s.createdAt ? `/ ${s.createdAt}` : ''})
+              {sermons.map(s => {
+                const isExpanded = expandedSermonIds[s.id] || false;
+
+                // 💡 텍스트가 3줄을 넘길 가능성이 있는지 체크하는 함수/조건
+                // 1) 엔터(\n)가 3개 이상 포함되어 있거나
+                // 2) 전체 글자 수가 일정 길이(예: 100자) 이상인 경우에만 접기 버튼 표시
+                const lineCount = (s.content || '').split('\n').length;
+                const isLongText = lineCount >= 5 || (s.content || '').length > 100;
+
+                return (
+                  <article key={s.id} className="sermon-card">
+                    <div className="sermon-header">
+                      <div>
+                        <h3>{s.title}</h3>
+                        <div className="sermon-author-date">
+                          👤 <strong>{s.authorId}</strong> | {s.date}{s.createdAt ? ` ${s.createdAt}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn-secondary-sm" onClick={() => handleStartEditSermon(s)}>
+                          수정
+                        </button>
+                        <button className="btn-danger-sm" onClick={() => {
+                          const updated = sermons.filter(item => item.id !== s.id)
+                          setSermons(updated)
+                          saveDataToFirebase(introData, members, visitations, regularRecords, updated, words, wordAudienceRecords)
+                        }}>삭제</button>
+                      </div>
+                    </div>
+
+                    {s.scripture && <p style={{ color: '#38bdf8', fontWeight: 'bold', marginTop: '6px' }}>📖 {s.scripture}</p>}
+
+                    {/* 3줄 이상일 때만 collapsed 클래스 적용 및 클릭 가능 */}
+                    <div 
+                      className={`sermon-content-box ${isLongText && !isExpanded ? 'collapsed' : ''}`}
+                      onClick={() => isLongText && toggleSermonExpand(s.id)}
+                      style={{ cursor: isLongText ? 'pointer' : 'default' }}
+                      title={isLongText ? "클릭하여 전체보기/접기" : undefined}
+                    >
+                      {s.content}
+                    </div>
+
+                    {/* 💡 3줄 이상인 긴 글일 때만 '전체 말씀 보기 / 접기' 버튼 표시 */}
+                    {isLongText && (
+                      <span className="sermon-expand-hint" onClick={() => toggleSermonExpand(s.id)}>
+                        {isExpanded ? '▲ 더보기 접기' : '▼ 전체 말씀 보기'}
                       </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button className="btn-secondary-sm" onClick={() => handleStartEditSermon(s)}>
-                        ✏️ 수정
-                      </button>
-                      <button className="btn-danger-sm" onClick={() => {
-                        const updated = sermons.filter(item => item.id !== s.id)
-                        setSermons(updated)
-                        saveDataToFirebase(introData, members, visitations, regularRecords, updated, words, wordAudienceRecords)
-                      }}>삭제</button>
-                    </div>
-                  </div>
-                  {s.scripture && <p style={{ color: '#38bdf8', fontWeight: 'bold' }}>📖 {s.scripture}</p>}
-                  <p style={{ whiteSpace: 'pre-wrap', marginTop: '6px' }}>{s.content}</p>
-                </article>
-              ))}
+                    )}
+                  </article>
+                )
+              })}
             </div>
           </section>
         )}
