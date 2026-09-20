@@ -1433,7 +1433,7 @@ export default function App() {
                         onClick={() => handleSelectWord(w.id)}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                       >
-                        📖{w.title} ({count})
+                        📖 {w.title} ({count})
                         <span
                           onClick={(e) => handleDeleteWord(w.id, e)}
                           style={{ color: isSelected ? '#0f172a' : '#f43f5e', marginLeft: '4px', fontWeight: 'bold' }}
@@ -1457,7 +1457,7 @@ export default function App() {
                     <>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
                         <h3 style={{ color: '#38bdf8' }}>
-                          📌 [{currentWord?.title}] 수강 인원 선택
+                          📌 [{currentWord?.title}] 성도 선택
                         </h3>
                         <span style={{ fontSize: '0.85rem', color: '#a8a8a8' }}>
                           선택됨: {selectedMemberIdsForWord.length}명
