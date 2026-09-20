@@ -74,25 +74,23 @@ export interface Sermon {
   createdAt: string
 }
 
-// 말씀 확인용 인터페이스
-export interface SermonTitleItem {
+export interface IntroData {
+  churchIntro: string
+  worshipSchedule: string
+}
+
+// === 말씀확인 기능 관련 인터페이스 ===
+export interface WordItem {
   id: string
   title: string
   createdAt: string
 }
 
-export interface MemberSermonRecord {
+export interface WordAudienceRecord {
   id: string
-  sermonTitleId: string
-  sermonTitle: string
+  wordId: string
   memberId: string
-  memberName: string
-  listenedAt: string
-}
-
-export interface IntroData {
-  churchIntro: string
-  worshipSchedule: string
+  createdAt: string
 }
 
 const HEADER_BG = frontPic
@@ -184,7 +182,7 @@ function getDayKorean(d: Date) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'intro' | 'members' | 'visitation' | 'regular' | 'sermonCheck' | 'sermons'>('intro')
+  const [activeTab, setActiveTab] = useState<'intro' | 'members' | 'visitation' | 'regular' | 'wordConfirm' | 'sermons'>('intro')
 
   const [adminUser, setAdminUser] = useState<'won' | 'wha' | null>(() => {
     const saved = sessionStorage.getItem('church_admin_user')
@@ -201,14 +199,15 @@ export default function App() {
   const [regularRecords, setRegularRecords] = useState<RegularWorshipRecord[]>([])
   const [sermons, setSermons] = useState<Sermon[]>([])
 
-  // 말씀 확인 관련 상태
-  const [sermonTitleList, setSermonTitleList] = useState<SermonTitleItem[]>([])
-  const [memberSermonRecords, setMemberSermonRecords] = useState<MemberSermonRecord[]>([])
-  const [inputSermonTitle, setInputSermonTitle] = useState('')
-  const [assignMemberId, setAssignMemberId] = useState('')
-  const [assignSermonTitleId, setAssignSermonTitleId] = useState('')
-  const [selectedSermonTitleIdFilter, setSelectedSermonTitleIdFilter] = useState<string | null>(null)
-  const [selectedMemberIdFilter, setSelectedMemberIdFilter] = useState<string | null>(null)
+  // 말씀확인 상태 추가
+  const [words, setWords] = useState<WordItem[]>([])
+  const [wordAudienceRecords, setWordAudienceRecords] = useState<WordAudienceRecord[]>([])
+  
+  // 말씀확인 UI 입력 state
+  const [newWordTitle, setNewWordTitle] = useState('')
+  const [selectedWordId, setSelectedWordId] = useState<string | null>(null)
+  const [selectedMemberIdsForWord, setSelectedMemberIdsForWord] = useState<string[]>([])
+  const [inspectedMemberId, setInspectedMemberId] = useState<string | null>(null)
 
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false)
   const [loginId, setLoginId] = useState('')
@@ -271,8 +270,8 @@ export default function App() {
           if (fetched.visitations) setVisitations(fetched.visitations)
           if (fetched.regularRecords) setRegularRecords(fetched.regularRecords)
           if (fetched.sermons) setSermons(fetched.sermons)
-          if (fetched.sermonTitleList) setSermonTitleList(fetched.sermonTitleList)
-          if (fetched.memberSermonRecords) setMemberSermonRecords(fetched.memberSermonRecords)
+          if (fetched.words) setWords(fetched.words)
+          if (fetched.wordAudienceRecords) setWordAudienceRecords(fetched.wordAudienceRecords)
         }
       } catch (e) {
         console.error('Firebase 데이터 로딩 오류:', e)
@@ -287,8 +286,8 @@ export default function App() {
     vList = visitations,
     rList = regularRecords,
     sList = sermons,
-    stList = sermonTitleList,
-    msList = memberSermonRecords
+    wList = words,
+    waRecords = wordAudienceRecords
   ) => {
     try {
       const payload = JSON.parse(JSON.stringify({
@@ -297,8 +296,8 @@ export default function App() {
         visitations: vList,
         regularRecords: rList,
         sermons: sList,
-        sermonTitleList: stList,
-        memberSermonRecords: msList
+        words: wList,
+        wordAudienceRecords: waRecords
       }))
       await setDoc(doc(db, 'church', 'app_data'), payload)
     } catch (e) {
@@ -376,6 +375,80 @@ export default function App() {
     const customCountries = members.map(m => m.country).filter(c => !ALL_COUNTRIES.includes(c))
     return Array.from(new Set([...ALL_COUNTRIES, ...customCountries]))
   }, [members])
+
+  // ================= 말씀확인 관련 로직 =================
+  const handleAddWord = async () => {
+    if (!newWordTitle.trim()) {
+      alert('말씀 제목을 입력해주세요.')
+      return
+    }
+
+    const newWord: WordItem = {
+      id: Date.now().toString(),
+      title: newWordTitle.trim(),
+      createdAt: new Date().toISOString()
+    }
+
+    const updatedWords = [newWord, ...words]
+    setWords(updatedWords)
+    setNewWordTitle('')
+    setSelectedWordId(newWord.id)
+    setSelectedMemberIdsForWord([])
+
+    await saveDataToFirebase(introData, members, visitations, regularRecords, sermons, updatedWords, wordAudienceRecords)
+  }
+
+  const handleDeleteWord = async (wordId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm('이 말씀 항목 및 해당 말씀의 수강 기록을 삭제하시겠습니까?')) return
+
+    const updatedWords = words.filter(w => w.id !== wordId)
+    const updatedRecords = wordAudienceRecords.filter(r => r.wordId !== wordId)
+
+    setWords(updatedWords)
+    setWordAudienceRecords(updatedRecords)
+    if (selectedWordId === wordId) setSelectedWordId(null)
+
+    await saveDataToFirebase(introData, members, visitations, regularRecords, sermons, updatedWords, updatedRecords)
+  }
+
+  const handleSelectWord = (wordId: string) => {
+    setSelectedWordId(wordId)
+    setInspectedMemberId(null)
+    const currentAudience = wordAudienceRecords
+      .filter(r => r.wordId === wordId)
+      .map(r => r.memberId)
+    setSelectedMemberIdsForWord(currentAudience)
+  }
+
+  const handleToggleMemberForWord = (memberId: string) => {
+    if (selectedMemberIdsForWord.includes(memberId)) {
+      setSelectedMemberIdsForWord(selectedMemberIdsForWord.filter(id => id !== memberId))
+    } else {
+      setSelectedMemberIdsForWord([...selectedMemberIdsForWord, memberId])
+    }
+  }
+
+  const handleSaveWordAudience = async () => {
+    if (!selectedWordId) {
+      alert('선택된 말씀이 없습니다.')
+      return
+    }
+
+    const otherWordRecords = wordAudienceRecords.filter(r => r.wordId !== selectedWordId)
+    const newRecords: WordAudienceRecord[] = selectedMemberIdsForWord.map(mId => ({
+      id: `${selectedWordId}_${mId}`,
+      wordId: selectedWordId,
+      memberId: mId,
+      createdAt: new Date().toISOString()
+    }))
+
+    const updatedRecords = [...otherWordRecords, ...newRecords]
+    setWordAudienceRecords(updatedRecords)
+    alert('말씀 수강 인원이 성공적으로 저장되었습니다.')
+
+    await saveDataToFirebase(introData, members, visitations, regularRecords, sermons, words, updatedRecords)
+  }
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0]
@@ -491,7 +564,7 @@ export default function App() {
     setFormCountry('태국')
     setShowAddForm(false)
     
-    await saveDataToFirebase(introData, updatedMembers, visitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+    await saveDataToFirebase(introData, updatedMembers, visitations, regularRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleUpdateMember = async () => {
@@ -499,7 +572,7 @@ export default function App() {
     const updated = members.map(m => m.id === editingMember.id ? editingMember : m)
     setMembers(updated)
     setEditingMember(null)
-    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleDeleteMember = async (id: string) => {
@@ -507,7 +580,7 @@ export default function App() {
       const updated = members.filter(m => m.id !== id)
       setMembers(updated)
       if (expandedMemberId === id) setExpandedMemberId(null)
-      await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+      await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, words, wordAudienceRecords)
     }
   }
 
@@ -521,7 +594,7 @@ export default function App() {
       return m
     })
     setMembers(updated)
-    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleAddMemberNote = async (memberId: string) => {
@@ -550,7 +623,7 @@ export default function App() {
 
     setMembers(updated)
     setNewNoteInput({ ...newNoteInput, [memberId]: '' })
-    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleDeleteMemberNote = async (memberId: string, noteId: string) => {
@@ -564,7 +637,7 @@ export default function App() {
       return m
     })
     setMembers(updated)
-    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+    await saveDataToFirebase(introData, updated, visitations, regularRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleToggleVisitationCheck = async (member: Member) => {
@@ -601,7 +674,7 @@ export default function App() {
     }
 
     setVisitations(updatedVisitations)
-    await saveDataToFirebase(introData, members, updatedVisitations, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+    await saveDataToFirebase(introData, members, updatedVisitations, regularRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleToggleRegularCheck = async (member: Member) => {
@@ -629,74 +702,7 @@ export default function App() {
     }
 
     setRegularRecords(updatedRecords)
-    await saveDataToFirebase(introData, members, visitations, updatedRecords, sermons, sermonTitleList, memberSermonRecords)
-  }
-
-  // 말씀확인 - 말씀제목 추가
-  const handleAddSermonTitle = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inputSermonTitle.trim()) {
-      alert('말씀제목을 입력해주세요.')
-      return
-    }
-
-    const newItem: SermonTitleItem = {
-      id: Date.now().toString(),
-      title: inputSermonTitle.trim(),
-      createdAt: new Date().toISOString().split('T')[0]
-    }
-
-    const updatedTitleList = [newItem, ...sermonTitleList]
-    setSermonTitleList(updatedTitleList)
-    setInputSermonTitle('')
-
-    await saveDataToFirebase(introData, members, visitations, regularRecords, sermons, updatedTitleList, memberSermonRecords)
-  }
-
-  // 말씀확인 - 교인에게 말씀 추가
-  const handleAssignSermonToMember = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!assignMemberId || !assignSermonTitleId) {
-      alert('교인과 말씀제목을 모두 선택해 주세요.')
-      return
-    }
-
-    const memberObj = members.find(m => m.id === assignMemberId)
-    const sermonTitleObj = sermonTitleList.find(s => s.id === assignSermonTitleId)
-
-    if (!memberObj || !sermonTitleObj) return
-
-    // 중복 추가 체크
-    const exists = memberSermonRecords.some(
-      r => r.memberId === assignMemberId && r.sermonTitleId === assignSermonTitleId
-    )
-    if (exists) {
-      alert('이미 해당 교인에게 등록된 말씀입니다.')
-      return
-    }
-
-    const newRec: MemberSermonRecord = {
-      id: Date.now().toString(),
-      sermonTitleId: sermonTitleObj.id,
-      sermonTitle: sermonTitleObj.title,
-      memberId: memberObj.id,
-      memberName: memberObj.name,
-      listenedAt: new Date().toISOString().split('T')[0]
-    }
-
-    const updatedRecords = [newRec, ...memberSermonRecords]
-    setMemberSermonRecords(updatedRecords)
-    
-    await saveDataToFirebase(introData, members, visitations, regularRecords, sermons, sermonTitleList, updatedRecords)
-  }
-
-  // 말씀확인 - 기록 삭제
-  const handleDeleteMemberSermonRecord = async (recordId: string) => {
-    if (window.confirm('해당 기록을 삭제하시겠습니까?')) {
-      const updated = memberSermonRecords.filter(r => r.id !== recordId)
-      setMemberSermonRecords(updated)
-      await saveDataToFirebase(introData, members, visitations, regularRecords, sermons, sermonTitleList, updated)
-    }
+    await saveDataToFirebase(introData, members, visitations, updatedRecords, sermons, words, wordAudienceRecords)
   }
 
   const handleSaveSermon = async (e: React.FormEvent) => {
@@ -721,7 +727,7 @@ export default function App() {
       })
       setSermons(updatedSermons)
       setEditingSermon(null)
-      await saveDataToFirebase(introData, members, visitations, regularRecords, updatedSermons, sermonTitleList, memberSermonRecords)
+      await saveDataToFirebase(introData, members, visitations, regularRecords, updatedSermons, words, wordAudienceRecords)
     } else {
       const newSermon: Sermon = {
         id: Date.now().toString(),
@@ -735,7 +741,7 @@ export default function App() {
 
       const updated = [newSermon, ...sermons]
       setSermons(updated)
-      await saveDataToFirebase(introData, members, visitations, regularRecords, updated, sermonTitleList, memberSermonRecords)
+      await saveDataToFirebase(introData, members, visitations, regularRecords, updated, words, wordAudienceRecords)
     }
 
     setSermonTitle(''); setSermonScripture(''); setSermonContent('')
@@ -834,7 +840,7 @@ export default function App() {
             <button className={activeTab === 'regular' ? 'active' : ''} onClick={() => setActiveTab('regular')}>
               ⛪ 정시예배
             </button>
-            <button className={activeTab === 'sermonCheck' ? 'active' : ''} onClick={() => setActiveTab('sermonCheck')}>
+            <button className={activeTab === 'wordConfirm' ? 'active' : ''} onClick={() => setActiveTab('wordConfirm')}>
               📖 말씀확인
             </button>
             <button className={activeTab === 'sermons' ? 'active' : ''} onClick={() => setActiveTab('sermons')}>
@@ -1243,7 +1249,7 @@ export default function App() {
                                   <button className="btn-danger-sm" onClick={() => {
                                     const updated = visitations.filter(v => v.id !== r.id)
                                     setVisitations(updated)
-                                    saveDataToFirebase(introData, members, updated, regularRecords, sermons, sermonTitleList, memberSermonRecords)
+                                    saveDataToFirebase(introData, members, updated, regularRecords, sermons, words, wordAudienceRecords)
                                   }}>취소</button>
                                 </div>
                               </div>
@@ -1387,162 +1393,175 @@ export default function App() {
           </section>
         )}
 
-        {/* 5. 말씀확인 (새로 추가된 탭) */}
-        {activeTab === 'sermonCheck' && adminUser && (
+        {/* 5. 말씀확인 신규 탭 */}
+        {activeTab === 'wordConfirm' && adminUser && (
           <section className="tab-content text-left">
             <h2>📖 말씀확인</h2>
 
-            {/* 말씀추가 영역 */}
+            {/* 말씀 추가 폼 */}
             <div className="form-box">
-              <h3>➕ 말씀추가 (말씀제목 등록)</h3>
-              <form onSubmit={handleAddSermonTitle} style={{ display: 'flex', gap: '8px' }}>
+              <h3>➕ 말씀추가</h3>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="말씀제목 입력..."
-                  value={inputSermonTitle}
-                  onChange={e => setInputSermonTitle(e.target.value)}
+                  placeholder="말씀 제목 입력..."
+                  value={newWordTitle}
+                  onChange={e => setNewWordTitle(e.target.value)}
+                  style={{ flex: 1, minWidth: '200px' }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddWord() }}
                 />
-                <button type="submit" className="btn-secondary" style={{ whiteSpace: 'nowrap' }}>
-                  등록
+                <button type="button" className="btn-primary" onClick={handleAddWord} style={{ width: 'auto', padding: '10px 20px' }}>
+                  말씀 추가
                 </button>
-              </form>
-            </div>
-
-            {/* 교인에게 말씀 추가 영역 */}
-            <div className="form-box">
-              <h3>👤 교인에게 수강 말씀 추가</h3>
-              <form onSubmit={handleAssignSermonToMember} className="form-grid">
-                <select value={assignMemberId} onChange={e => setAssignMemberId(e.target.value)} required>
-                  <option value="">-- 교인 선택 --</option>
-                  {members.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.country})
-                    </option>
-                  ))}
-                </select>
-
-                <select value={assignSermonTitleId} onChange={e => setAssignSermonTitleId(e.target.value)} required>
-                  <option value="">-- 말씀제목 선택 --</option>
-                  {sermonTitleList.map(st => (
-                    <option key={st.id} value={st.id}>
-                      {st.title}
-                    </option>
-                  ))}
-                </select>
-
-                <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1' }}>
-                  교인에게 말씀 추가
-                </button>
-              </form>
-            </div>
-
-            {/* 말씀제목 버튼으로 나열 및 들었던 사람들 확인 */}
-            <div className="info-card">
-              <h3>📖 말씀제목 목록 (클릭시 들었던 교인 출력)</h3>
-              <div className="filter-tags">
-                <button
-                  className={selectedSermonTitleIdFilter === null ? 'active' : ''}
-                  onClick={() => setSelectedSermonTitleIdFilter(null)}
-                >
-                  전체 보기
-                </button>
-                {sermonTitleList.map(st => (
-                  <button
-                    key={st.id}
-                    className={selectedSermonTitleIdFilter === st.id ? 'active' : ''}
-                    onClick={() => setSelectedSermonTitleIdFilter(st.id)}
-                  >
-                    {st.title}
-                  </button>
-                ))}
               </div>
+            </div>
 
-              {selectedSermonTitleIdFilter && (
-                <div className="sermon-check-result-box">
-                  <h4 style={{ color: '#38bdf8', marginBottom: '8px' }}>
-                    '
-                    {sermonTitleList.find(s => s.id === selectedSermonTitleIdFilter)?.title}
-                    ' 들었던 교인 목록:
-                  </h4>
-                  {memberSermonRecords.filter(r => r.sermonTitleId === selectedSermonTitleIdFilter).length === 0 ? (
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>아직 들은 교인이 없습니다.</p>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {memberSermonRecords
-                        .filter(r => r.sermonTitleId === selectedSermonTitleIdFilter)
-                        .map(r => (
-                          <span key={r.id} className="country-badge" style={{ padding: '6px 12px', fontSize: '0.88rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            👤 {r.memberName}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMemberSermonRecord(r.id)}
-                              style={{ background: 'none', border: 'none', color: '#fda4af', cursor: 'pointer', fontSize: '0.75rem', marginLeft: '4px' }}
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        ))}
-                    </div>
-                  )}
+            {/* 말씀 버튼 목록 */}
+            <div className="info-card">
+              <h3>📜 말씀 선택</h3>
+              {words.length === 0 ? (
+                <p className="subtitle">등록된 말씀 항목이 없습니다. 상단에서 추가해주세요.</p>
+              ) : (
+                <div className="filter-tags">
+                  {words.map(w => {
+                    const count = wordAudienceRecords.filter(r => r.wordId === w.id).length
+                    const isSelected = selectedWordId === w.id
+                    return (
+                      <button
+                        key={w.id}
+                        className={isSelected ? 'active' : ''}
+                        onClick={() => handleSelectWord(w.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        📖 {w.title} ({count}명)
+                        <span
+                          onClick={(e) => handleDeleteWord(w.id, e)}
+                          style={{ color: isSelected ? '#0f172a' : '#f43f5e', marginLeft: '4px', fontWeight: 'bold' }}
+                          title="삭제"
+                        >
+                          ✕
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
 
-            {/* 교인 버튼으로 나열 및 무슨 말씀을 들었는지 확인 */}
+            {/* 선택한 말씀의 수강 대상자 체크 및 기록 */}
+            {selectedWordId && (
+              <div className="form-box">
+                {(() => {
+                  const currentWord = words.find(w => w.id === selectedWordId)
+                  return (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
+                        <h3 style={{ color: '#38bdf8' }}>
+                          📌 [{currentWord?.title}] 수강 인원 선택
+                        </h3>
+                        <span style={{ fontSize: '0.85rem', color: '#a8a8a8' }}>
+                          선택됨: {selectedMemberIdsForWord.length}명
+                        </span>
+                      </div>
+
+                      {/* 국가별 구분 버튼 라인 */}
+                      <div className="attendance-country-groups">
+                        {availableCountries.map(countryName => {
+                          const countryMembers = members.filter(m => m.country === countryName)
+                          if (countryMembers.length === 0) return null
+
+                          return (
+                            <div key={countryName} style={{ marginBottom: '12px' }}>
+                              <h4 className="country-section-title">🌏 {countryName}</h4>
+                              <div className="filter-tags">
+                                {countryMembers.map(m => {
+                                  const isChecked = selectedMemberIdsForWord.includes(m.id)
+                                  return (
+                                    <button
+                                      key={m.id}
+                                      className={isChecked ? 'active' : ''}
+                                      onClick={() => handleToggleMemberForWord(m.id)}
+                                      style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                                    >
+                                      {isChecked ? '✅ ' : '👤 '}{m.name}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleSaveWordAudience}
+                        style={{ marginTop: '16px' }}
+                      >
+                        💾 확인 (저장)
+                      </button>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* 교인별 수강 말씀 개별 조회 */}
             <div className="info-card">
-              <h3>👤 교인 목록 (클릭시 들었던 말씀 출력)</h3>
-              <div className="filter-tags">
-                <button
-                  className={selectedMemberIdFilter === null ? 'active' : ''}
-                  onClick={() => setSelectedMemberIdFilter(null)}
-                >
-                  전체 보기
-                </button>
+              <h3>👤 교인별 수강한 말씀 확인</h3>
+              <p className="subtitle mb-12">교인을 선택하면 해당 사람이 어떤 말씀을 들었는지 확인할 수 있습니다.</p>
+              
+              <div className="filter-tags mb-12">
                 {members.map(m => (
                   <button
                     key={m.id}
-                    className={selectedMemberIdFilter === m.id ? 'active' : ''}
-                    onClick={() => setSelectedMemberIdFilter(m.id)}
+                    className={inspectedMemberId === m.id ? 'active' : ''}
+                    onClick={() => {
+                      setInspectedMemberId(m.id)
+                      setSelectedWordId(null)
+                    }}
                   >
-                    {m.name}
+                    👤 {m.name} ({m.country})
                   </button>
                 ))}
               </div>
 
-              {selectedMemberIdFilter && (
-                <div className="sermon-check-result-box">
-                  <h4 style={{ color: '#38bdf8', marginBottom: '8px' }}>
-                    '
-                    {members.find(m => m.id === selectedMemberIdFilter)?.name}
-                    ' 교인이 들었던 말씀 목록:
-                  </h4>
-                  {memberSermonRecords.filter(r => r.memberId === selectedMemberIdFilter).length === 0 ? (
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>들은 말씀 기록이 없습니다.</p>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {memberSermonRecords
-                        .filter(r => r.memberId === selectedMemberIdFilter)
-                        .map(r => (
-                          <span key={r.id} className="country-badge" style={{ padding: '6px 12px', fontSize: '0.88rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            📖 {r.sermonTitle}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMemberSermonRecord(r.id)}
-                              style={{ background: 'none', border: 'none', color: '#fda4af', cursor: 'pointer', fontSize: '0.75rem', marginLeft: '4px' }}
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        ))}
-                    </div>
-                  )}
+              {inspectedMemberId && (
+                <div className="attendance-summary-box">
+                  {(() => {
+                    const inspectedMember = members.find(m => m.id === inspectedMemberId)
+                    const listenedWordIds = wordAudienceRecords
+                      .filter(r => r.memberId === inspectedMemberId)
+                      .map(r => r.wordId)
+                    const listenedWords = words.filter(w => listenedWordIds.includes(w.id))
+
+                    return (
+                      <div>
+                        <h4 style={{ color: '#38bdf8', marginBottom: '8px' }}>
+                          <strong>{inspectedMember?.name}</strong> 님이 들은 말씀 목록 ({listenedWords.length}개)
+                        </h4>
+                        {listenedWords.length === 0 ? (
+                          <p style={{ color: '#64748b' }}>아직 등록된 수강 말씀이 없습니다.</p>
+                        ) : (
+                          <ul style={{ paddingLeft: '20px', color: '#e6e6e6' }}>
+                            {listenedWords.map(w => (
+                              <li key={w.id} style={{ marginBottom: '4px' }}>
+                                📖 <strong>{w.title}</strong>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
           </section>
         )}
 
-        {/* 6. 말씀 저장소 */}
+        {/* 6. 말씀 저장 */}
         {activeTab === 'sermons' && adminUser && (
           <section className="tab-content text-left">
             <h2>📜 말씀 저장소</h2>
@@ -1582,7 +1601,7 @@ export default function App() {
                       <button className="btn-danger-sm" onClick={() => {
                         const updated = sermons.filter(item => item.id !== s.id)
                         setSermons(updated)
-                        saveDataToFirebase(introData, members, visitations, regularRecords, updated, sermonTitleList, memberSermonRecords)
+                        saveDataToFirebase(introData, members, visitations, regularRecords, updated, words, wordAudienceRecords)
                       }}>삭제</button>
                     </div>
                   </div>
