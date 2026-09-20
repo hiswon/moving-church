@@ -1433,7 +1433,7 @@ export default function App() {
                         onClick={() => handleSelectWord(w.id)}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                       >
-                        📖 {w.title} ({count}명)
+                        📖{w.title} ({count})
                         <span
                           onClick={(e) => handleDeleteWord(w.id, e)}
                           style={{ color: isSelected ? '#0f172a' : '#f43f5e', marginLeft: '4px', fontWeight: 'bold' }}
