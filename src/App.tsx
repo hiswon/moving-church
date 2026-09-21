@@ -886,6 +886,9 @@ export default function App() {
               <a href="https://movingcambodia.vercel.app/" target="_blank" rel="noopener noreferrer" className="link-btn">
                 🌿 무빙캄보디아
               </a>
+              <a href="https://hisword-line.vercel.app/" target="_blank" rel="noopener noreferrer" className="link-btn">
+                🌿 성경라인
+              </a>
             </div>
           </section>
         )}
