@@ -227,7 +227,7 @@
 
 .metric-label {
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted, #807368);
   text-transform: uppercase;
   letter-spacing: 0.025em;
@@ -450,7 +450,7 @@
 .modal-submit-btn {
   flex: 1;
   background-color: var(--accent-earth);
-  color: #beda73;
+  color: #8fad3b;
   border: none;
   padding: 0.75rem;
   border-radius: 0.5rem;
@@ -477,4 +477,27 @@
   border-radius: 0.5rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* 프라이버시 주의사항 안내 박스 스타일 */
+.privacy-notice-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #fcf8f6;
+  border: 1px solid #e8dbd5;
+  border-left: 4px solid #9e522b;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: #5c4a42;
+}
+
+.privacy-notice-icon {
+  font-size: 0.9rem;
+}
+
+.privacy-notice-text {
+  line-height: 1.4;
 }

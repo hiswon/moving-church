@@ -7,7 +7,6 @@ import { MissionMapGraph } from './MissionMapGraph';
 
 import headerImg from './assets/header.jpg'
 import worshipImg from './assets/worship.jpg'
-import locationImg from './assets/location.jpg'
 
 const DRIVE_IMG_1 = 'https://lh3.googleusercontent.com/d/1pyi9KbaXypMf-muLxYqokAAcDMic0u1z'
 const DRIVE_IMG_2 = 'https://lh3.googleusercontent.com/d/1vHwBaAGw3T3i_dyNLFS6ipjLQCx8RIBA'
@@ -149,17 +148,17 @@ function App() {
       <header className="church-header">
         <img src={headerImg} alt="Moving Church 메인" className="header-img" />
         <h1>Moving Church</h1>
-        <p className="subtitle">하나님의 당신을 사랑하십니다.</p>
+        <p className="subtitle">|하나님은 당신을 사랑하십니다|</p>
 
         {/* 관리자 모드 접속 버튼 */}
         <div className="admin-bar">
           {!isAdmin ? (
             <button className="admin-btn" onClick={() => setShowPasswordModal(true)}>
-              🔒 관리자 로그인
+              관리자 로그인
             </button>
           ) : (
             <button className="admin-btn logout" onClick={() => setIsAdmin(false)}>
-              🔓 관리자 로그아웃
+              관리자 로그아웃
             </button>
           )}
         </div>
@@ -257,7 +256,7 @@ function App() {
         {/* 1. 교회소개 */}
         {activeTab === 'about' && (
           <section className="tab-content">
-            <h2>✨ 당신은 예수님을 믿어야 합니다.</h2>
+            <h2>|당신은 예수님을 믿어야 합니다|</h2>
             <div className="video-container">
               <iframe
                 src="https://www.youtube.com/embed/L-wvdG55Ot4"
@@ -267,35 +266,31 @@ function App() {
               ></iframe>
             </div>
 
-            <p style={{ marginTop: '16px', lineHeight: '1.6', color: '#0369a1', background: '#f0f9ff', padding: '12px 16px', borderRadius: '12px', borderLeft: '4px solid #38bdf8' }}>
-              '예수께서 이르시되 내가 곧 길이요 진리요 생명이니 나로 말미암지 않고는 아버지께로 올 자가 없느니라' (요 14:6)
+            <p style={{ fontSize: '0.95rem', marginTop: '16px', lineHeight: '1.6', color: '#0369a1', background: '#f0f9ff', padding: '12px 16px', borderRadius: '12px', borderLeft: '4px solid #38bdf8' }}>
+              '예수께서 이르시되 내가 곧 길이요 진리요 생명이니<br/> 나로 말미암지 않고는 아버지께로 올 자가 없느니라' (요 14:6)
             </p>
 
             <div style={{ margin: '30px 0 16px' }}>
-              <h2>🙏 예배 안내</h2>
+              <h2>|교회 안내|</h2>
               <img src={worshipImg} alt="예배 모습" className="content-img" />
             </div>
 
-            <div style={{ margin: '30px 0 16px' }}>
+            <div style={{ margin: '15px 0 16px' }}>
               <MissionMapGraph />
             </div>
             
-            <div style={{ margin: '30px 0 16px' }}>
-              <h2>📍 오시는 길</h2>
-              <img src={locationImg} alt="약도" className="content-img" />
-            </div>
 
             
             {/* 링크 버튼 섹션 */}
             <div className="link-section">
-              <h3>관련 링크</h3>
+              <h2>|관련링크|</h2>
               <a 
                 href="https://moving-thai.vercel.app/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="link-btn"
               >
-                🌿 무빙타이
+                무빙타이
               </a>
               <a 
                 href="https://movingcambodia.vercel.app/" 
@@ -303,7 +298,7 @@ function App() {
                 rel="noopener noreferrer" 
                 className="link-btn"
               >
-                🌿 무빙캄보디아
+                무빙캄보디아
               </a>
             </div>
           </section>
@@ -312,7 +307,7 @@ function App() {
         {/* 2. 이번달일정 */}
         {activeTab === 'monthly' && (
           <section className="tab-content text-left">
-            <h2>🗓️ 이번 달 일정</h2>
+            <h2>|이번 달 일정|</h2>
             <img src={DRIVE_IMG_1} alt="이번달 일정" className="content-img" />
             {renderScheduleContent(scheduleData.monthly)}
           </section>
@@ -321,7 +316,7 @@ function App() {
         {/* 3. 사역내용 */}
         {activeTab === 'ministry' && (
           <section className="tab-content text-left">
-            <h2>🤝 사역 내용</h2>
+            <h2>|사역내용|</h2>
             <img src={DRIVE_IMG_2} alt="사역 내용" className="content-img" />
             {renderScheduleContent(scheduleData.ministry)}
           </section>
@@ -330,7 +325,7 @@ function App() {
         {/* 4. 2026주요사업 */}
         {activeTab === 'yearly' && (
           <section className="tab-content text-left">
-            <h2>📌 2026 주요 사업</h2>
+            <h2>|2026주요사업|</h2>
             <img src={DRIVE_IMG_3} alt="2026 주요 사업" className="content-img" />
             {renderScheduleContent(scheduleData.yearly)}
           </section>
@@ -339,7 +334,7 @@ function App() {
         {/* 5. 멤버 */}
         {activeTab === 'members' && (
           <section className="tab-content text-left">
-            <h2>👥 멤버 소개</h2>
+            <h2>|멤버소개|</h2>
             {renderScheduleContent(scheduleData.members)}
           </section>
         )}
