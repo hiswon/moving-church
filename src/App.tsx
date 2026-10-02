@@ -3,6 +3,8 @@ import './App.css'
 import { db } from './firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
+import { MissionMapGraph } from './MissionMapGraph';
+
 import headerImg from './assets/header.jpg'
 import worshipImg from './assets/worship.jpg'
 import locationImg from './assets/location.jpg'
@@ -275,10 +277,15 @@ function App() {
             </div>
 
             <div style={{ margin: '30px 0 16px' }}>
+              <MissionMapGraph />
+            </div>
+            
+            <div style={{ margin: '30px 0 16px' }}>
               <h2>📍 오시는 길</h2>
               <img src={locationImg} alt="약도" className="content-img" />
             </div>
 
+            
             {/* 링크 버튼 섹션 */}
             <div className="link-section">
               <h3>관련 링크</h3>
