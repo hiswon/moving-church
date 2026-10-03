@@ -501,3 +501,20 @@
 .privacy-notice-text {
   line-height: 1.4;
 }
+
+/* 기본은 모바일용 숨기고 PC용 보여주기 */
+.text-mo { display: none; }
+.text-pc { display: inline; }
+
+/* 화면이 좁아지면 (모바일) 반대로 적용 */
+@media (max-width: 600px) {
+  .text-mo { display: inline; }
+  .text-pc { display: none; }
+}
+
+.phone-cut {
+  max-width: 100%;       /* 부모 영역을 넘지 않도록 제한 */
+  overflow: hidden;      /* 넘치는 부분 숨김 */
+  text-overflow: ellipsis; /* 공간이 부족하면 '...'으로 표시 */
+  white-space: nowrap;   /* 줄바꿈이 일어나서 세로로 내려가는 현상 방지 */
+}

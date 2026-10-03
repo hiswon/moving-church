@@ -429,7 +429,7 @@ export const MissionMapGraph: React.FC = () => {
 
       {/* 🌟 프라이버시 주의사항 안내 박스 */}
       <div className="privacy-notice-box">
-        <div className="privacy-notice-text">
+        <div className="privacy-notice-text phone-cut">
           아래 지도에 등록된 이름들은 프라이버시를 위해 가명임을 알려드립니다.
         </div>
       </div>
@@ -578,7 +578,10 @@ export const MissionMapGraph: React.FC = () => {
                 </span>
                 <span className="detail-badge" style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem' }}>{selectedMissionary.region}</span>
                 {isAdminMode && (
-                  <button className="action-btn-sm" onClick={() => requestAuth('edit')} style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}>수정 / 관리</button>
+                  <button className="action-btn-sm" onClick={() => requestAuth('edit')} style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}>
+                    <span className="text-pc">수정 / 관리</span>
+                    <span className="text-mo">수정</span>
+                  </button>
                 )}
               </div>
             </div>

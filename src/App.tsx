@@ -266,7 +266,7 @@ function App() {
               ></iframe>
             </div>
 
-            <p style={{ fontSize: '0.95rem', marginTop: '16px', lineHeight: '1.6', color: '#0369a1', background: '#f0f9ff', padding: '12px 16px', borderRadius: '12px', borderLeft: '4px solid #38bdf8' }}>
+            <p className="verse-word">
               '예수께서 이르시되 내가 곧 길이요 진리요 생명이니<br/> 나로 말미암지 않고는 아버지께로 올 자가 없느니라' (요 14:6)
             </p>
 
