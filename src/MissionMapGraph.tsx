@@ -602,7 +602,7 @@ export const MissionMapGraph: React.FC = () => {
 
       {/* 대륙별 및 국가별 통계 카드 (선택된 카테고리에 연동됨) */}
       <div className="chart-card" style={{ marginTop: '0.75rem' }}>
-        <div className="map-title" style={{ fontSize: '0.85rem' }}>
+        <div className="map-title phone-cut" style={{ fontSize: '0.85rem' }}>
           📊 대륙별 및 국가별 분포 현황 {selectedCategoryFilter !== '전체' && <span style={{ color: '#9e522b' }}>[{selectedCategoryFilter}]</span>} (터치하여 펼치기)
         </div>
         <div className="chart-list" style={{ marginTop: '0.5rem' }}>
