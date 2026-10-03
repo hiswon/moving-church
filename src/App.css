@@ -369,6 +369,7 @@ body {
 .verse-word {
   font-size: 0.90rem;
   letter-spacing: clamp(0.002em, 0.02vw, 0.08em);
+  word-break: keep-all;
   text-wrap: balance;
   margin-top: 8px;
   line-height: 1.6;
