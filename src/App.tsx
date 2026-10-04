@@ -275,7 +275,7 @@ function App() {
               <img src={worshipImg} alt="예배 모습" className="content-img" />
             </div>
 
-            <div style={{ margin: '15px 0 16px' }}>
+            <div style={{ margin: '10px 0 10px' }}>
               <MissionMapGraph />
             </div>
             

@@ -586,7 +586,7 @@ export const MissionMapGraph: React.FC = () => {
               </div>
             </div>
 
-            <div className="prayer-box" style={{ marginTop: '0.4rem' }}>
+            <div className="prayer-box" style={{ marginTop: '0.3rem' }}>
               <span className="metric-label" style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>기도제목</span>
               <p className="metric-content" style={{ fontSize: '0.8rem', margin: '0.2rem 0' }}>{selectedMissionary.prayerPoints}</p>
               {selectedMissionary.memo && (

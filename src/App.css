@@ -45,7 +45,7 @@ body {
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
-  padding: 0.75rem; /* 모바일에서 여백을 살짝 줄여 화면 활용 극대화 */
+  padding: 0.30rem; /* 모바일에서 여백을 살짝 줄여 화면 활용 극대화 */
 }
 
 /* 3. 헤더 영역 */
@@ -130,7 +130,7 @@ body {
 .tab-content {
   width: 100%;
   background: var(--card-bg);
-  padding: 1.25rem 1rem;
+  padding: 1.25rem 0.40rem;
   border-radius: var(--radius-lg);
   border: 1px solid #e0f2fe;
 }
